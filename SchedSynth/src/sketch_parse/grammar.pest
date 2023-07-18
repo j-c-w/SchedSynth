@@ -1,0 +1,22 @@
+alpha = { 'a'..'z' | 'A'..'Z' }
+digit = { '0'..'9' }
+
+ident = { alpha+ }
+newline = { whitespace* ~ "\n"}
+
+indent = { "  " }
+produce = { "produce" ~ whitespace+ ~ ident }
+for = {"for" ~ whitespace+ ~ident }
+assignment = {ident ~ "(...) = ..."}
+
+whitespace = { " " | "\t" }
+
+
+sequence_list = {
+  sequence ~ newline ~ sequence_list
+  | sequence
+}
+sequence =
+  { indent* ~ produce
+  | indent* ~ for
+  | indent* ~ assignment }
