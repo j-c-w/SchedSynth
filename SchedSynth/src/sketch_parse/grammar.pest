@@ -15,11 +15,13 @@ assignment = {ident ~ "(...) = ..."}
 
 whitespace = { " " | "\t" }
 whitespace_plus = { whitespace+ }
+whitespace_or_newline = { whitespace | newline }
+whitespace_or_newlines = { whitespace_or_newline* }
 
 
 sequence_list = {
   sequence ~ newline ~ sequence_list
-  | sequence ~ EOI
+  | sequence ~ whitespace_or_newlines ~ EOI
 }
 sequence =
   { indent_nest ~ produce

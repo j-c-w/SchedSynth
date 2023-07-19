@@ -1,0 +1,4 @@
+produce test:
+  for x:
+    for y:
+      test(...) = ...
