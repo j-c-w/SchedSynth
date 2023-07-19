@@ -1,22 +1,27 @@
 alpha = { 'a'..'z' | 'A'..'Z' }
 digit = { '0'..'9' }
+colon = { ":" }
 
 ident = { alpha+ }
 newline = { whitespace* ~ "\n"}
 
 indent = { "  " }
-produce = { "produce" ~ whitespace+ ~ ident }
-for = {"for" ~ whitespace+ ~ident }
+
+indent_nest = { indent* }
+
+produce = { "produce" ~ whitespace_plus ~ ident ~ colon }
+pfor = {"for" ~ whitespace_plus ~ident ~ colon }
 assignment = {ident ~ "(...) = ..."}
 
 whitespace = { " " | "\t" }
+whitespace_plus = { whitespace+ }
 
 
 sequence_list = {
   sequence ~ newline ~ sequence_list
-  | sequence
+  | sequence ~ EOI
 }
 sequence =
-  { indent* ~ produce
-  | indent* ~ for
-  | indent* ~ assignment }
+  { indent_nest ~ produce
+  | indent_nest ~ pfor
+  | indent_nest ~ assignment }
