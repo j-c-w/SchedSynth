@@ -8,3 +8,5 @@ edition = "2021"
 [dependencies]
 pest = { version = "2"}
 pest_derive = { version = "2"}
+lazy_static = "1.4"
+clap = "3.0"
