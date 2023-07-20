@@ -14,6 +14,8 @@ pub struct Options {
 	// debug flags
 	pub debug_parser: bool,
 	pub debug_synthesizer: bool,
+    // Debug the reorder flag?
+    pub debug_reorder: bool,
 }
 
 pub fn parse_options() -> Options {
@@ -41,7 +43,13 @@ pub fn parse_options() -> Options {
 			Arg::new("debug-synthesizer")
 			.long("debug-synthesizer")
 			.help("debug the synthesizer")
-		).get_matches();
+		)
+		.arg(
+			Arg::new("debug-reorder")
+			.long("debug-reorder")
+			.help("debug the reorder inference pass")
+		)
+        .get_matches();
 
     // initialize to defaults
     let opts: Options = Options {
@@ -52,6 +60,7 @@ pub fn parse_options() -> Options {
 
         debug_parser: args.is_present("debug-parser"),
 		debug_synthesizer: args.is_present("debug-synthesizer"),
+        debug_reorder: args.is_present("debug-reorder"),
     };
 
     return opts;

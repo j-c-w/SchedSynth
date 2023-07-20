@@ -17,6 +17,7 @@ pub struct Variable {
 #[derive(Clone)]
 pub enum SketchAST { // nodes have nesting, <other stuff>
     Produce(i32, Variable, Box<SketchAST>), // name, contents
+    Consume(i32, Variable, Box<SketchAST>), // name, contents
     For(i32, Variable, Box<SketchAST>), // variable name, sub-contents
     Assign(i32, Variable), // variable name
     Vectorize(i32, Variable, Box<SketchAST>), // variable name, sub-contents
@@ -44,6 +45,8 @@ impl ToString for SketchAST {
         match self {
             SketchAST::Produce(_, n, subelts) => format!("Produce {} ({})", n.to_string().clone(),
             subelts.to_string()),
+            SketchAST::Consume(_, n, subelts) => format!("Consume {} ({})", n.to_string().clone(),
+            subelts.to_string()),
             SketchAST::For(_, n, subelts) => format!("For {} ({})", n.to_string().clone(),
             subelts.to_string()),
             SketchAST::Assign(_, n) => format!("{} = ...", n.to_string().clone()),
@@ -61,6 +64,11 @@ impl AST for SketchAST {
     fn children(&self) -> Vec<SketchAST> {
         match self {
             SketchAST::Produce(_nest, _n, children) => {
+                let mut res = Vec::new();
+                res.push(children.as_ref().clone());
+                res
+            },
+            SketchAST::Consume(_nest, _n, children) => {
                 let mut res = Vec::new();
                 res.push(children.as_ref().clone());
                 res
@@ -90,6 +98,7 @@ impl AST for SketchAST {
     fn node_type(&self) -> String {
         match self {
             SketchAST::Produce(_, _, _) => "Produce".into(),
+            SketchAST::Consume(_, _, _) => "Consume".into(),
             SketchAST::For(_, _, _) => "For".into(),
             SketchAST::Assign(_, _) => "Assign".into(),
             SketchAST::Vectorize(_, _, _) => "Vectorize".into(),
@@ -101,6 +110,7 @@ impl AST for SketchAST {
     fn size(&self) -> i32 {
         match self {
             SketchAST::Produce(_, _, child) => child.size() + 1,
+            SketchAST::Consume(_, _, child) => child.size() + 1,
             SketchAST::For(_, _, child) => child.size() + 1,
             SketchAST::Assign(_, _) => 1,
             SketchAST::Sequence(_, children) => children.iter().map(|child| child.size()).sum(),
@@ -180,6 +190,23 @@ fn process(opts: &Options, nesting_depth: i32, sequence: Pair<Rule>) -> SketchAS
             SketchAST::Produce(nesting_depth, ident,
                 Box::new(SketchAST::Sequence(nesting_depth, Vec::new())))
         },
+		Rule::consume => {
+			if opts.debug_parser {
+                println!("Got a consume");
+            }
+            let mut inner = sequence.into_inner();
+
+            let _title = inner.next(); // consume
+		    // let _ = inner.next(); // whitespace
+            let ident = match process(opts, nesting_depth, inner.next().unwrap()) {
+                SketchAST::ASTVariable(_, n) => n,
+                _ => panic!("Unexpected non varaiblae")
+            }; // identifier.
+
+            // Parser produces un-nested code --- nest it later.
+            SketchAST::Consume(nesting_depth, ident,
+                Box::new(SketchAST::Sequence(nesting_depth, Vec::new())))
+        },
         Rule::pfor => {
             if opts.debug_parser {
                 println!("Got a for");
@@ -254,6 +281,7 @@ fn process(opts: &Options, nesting_depth: i32, sequence: Pair<Rule>) -> SketchAS
 fn get_nest_depth(v: &SketchAST) -> &i32 {
     match v {
         SketchAST::Produce(n, _, _) => n,
+        SketchAST::Consume(n, _, _) => n,
         SketchAST::For(n, _, _) => n,
         SketchAST::Assign(n, _) => n,
         SketchAST::Sequence(n, _) => n,
@@ -268,6 +296,10 @@ fn set_nest(v: &SketchAST, nest: SketchAST) -> SketchAST {
         SketchAST::Produce(n, var, current_nest) => {
             assert!(current_nest.size() == 0); // check we aren't deleting anything
             SketchAST::Produce(n.clone(), var.clone(), Box::new(nest))
+        },
+        SketchAST::Consume(n, var, current_nest) => {
+            assert!(current_nest.size() == 0); // check we aren't deleting anything
+            SketchAST::Consume(n.clone(), var.clone(), Box::new(nest))
         },
         SketchAST::For(n, var, current_nest) => {
             assert!(current_nest.size() == 0); // check we aren't deleting anything

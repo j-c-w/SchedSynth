@@ -1,4 +1,4 @@
-produce test:
-  for x:
-    for y:
-      test(...) = ...
+produce cons:
+  for y:
+    for x:
+      cons(...) = ...
