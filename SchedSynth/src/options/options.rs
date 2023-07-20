@@ -7,12 +7,13 @@ pub struct Options {
 	// debugging.
 	pub initialized: bool,
 
-        // positional args -- these are files.
-        pub source: String,
-        pub target: String,
+	// positional args -- these are files.
+	pub source: String,
+	pub target: String,
 
-        // debug flags
+	// debug flags
 	pub debug_parser: bool,
+	pub debug_synthesizer: bool,
 }
 
 pub fn parse_options() -> Options {
@@ -35,7 +36,12 @@ pub fn parse_options() -> Options {
             Arg::new("debug-parser")
             .long("debug-parser")
             .help("debug the skeleton parser")
-        ).get_matches();
+        )
+		.arg(
+			Arg::new("debug-synthesizer")
+			.long("debug-synthesizer")
+			.help("debug the synthesizer")
+		).get_matches();
 
     // initialize to defaults
     let opts: Options = Options {
@@ -44,7 +50,8 @@ pub fn parse_options() -> Options {
         source: args.value_of("source").unwrap().into(),
         target: args.value_of("target").unwrap().into(),
 
-        debug_parser: args.is_present("debug-parser")
+        debug_parser: args.is_present("debug-parser"),
+		debug_synthesizer: args.is_present("debug-synthesizer"),
     };
 
     return opts;

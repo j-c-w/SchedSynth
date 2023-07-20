@@ -1,27 +1,35 @@
 use crate::options::options::Options;
 
-struct Func {
-    name: String
+#[derive(Clone)]
+pub struct HFunc {
+    pub name: String
 }
 
-struct Variable {
-    name: String
+#[derive(Clone)]
+pub struct HVar {
+    pub name: String
 }
 
+#[derive(Clone)]
 pub enum HalideCommand {
-    Vectorize(Func), // Func to vectorize
-    Unroll(Func, i32), // Func to unroll, unroll factor.
-    Tile(), // Func to tile, 
-    ComputeAt(Func, Func, Variable) // Compute func at func at varaiable
+    Vectorize(HFunc, HVar), // HFunc to vectorize
+    Unroll(HFunc, i32), // HFunc to unroll, unroll factor.
+    Tile(), // HFunc to tile, 
+    ComputeAt(HFunc, HFunc, HVar) // Compute func at func at varaiable
 }
 
-impl ToString for Func {
+#[derive(Clone)]
+pub struct HalideProgram {
+    pub commands: Vec<HalideCommand>
+}
+
+impl ToString for HFunc {
     fn to_string(&self) -> String {
         self.name.clone()
     }
 }
 
-impl ToString for Variable {
+impl ToString for HVar {
     fn to_string(&self) -> String {
         self.name.clone()
     }
@@ -30,7 +38,8 @@ impl ToString for Variable {
 impl ToString for HalideCommand {
     fn to_string(&self) -> String {
         match self {
-            HalideCommand::Vectorize(func) => format!("{}.vectorize()", func.to_string()),
+            HalideCommand::Vectorize(func, var) => format!("{}.vectorize({})", func.to_string(),
+            var.to_string()),
             HalideCommand::Unroll(func, factor) => format!("{}.Unroll({})", func.to_string(), factor),
             HalideCommand::Tile() => String::from("X.tile()"),
             HalideCommand::ComputeAt(func1, func2, var) => {
@@ -40,6 +49,6 @@ impl ToString for HalideCommand {
     }
 }
 
-pub fn generate(_opts: &Options, commands: Vec<HalideCommand>) -> String {
-    commands.iter().map(|command| command.to_string()).collect::<Vec<String>>().join("\n")
+pub fn generate(_opts: &Options, program: HalideProgram) -> String {
+    program.commands.iter().map(|command| command.to_string()).collect::<Vec<String>>().join("\n")
 }

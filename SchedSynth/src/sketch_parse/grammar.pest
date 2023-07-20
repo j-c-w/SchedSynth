@@ -12,6 +12,7 @@ indent_nest = { indent* }
 produce = { "produce" ~ whitespace_plus ~ ident ~ colon }
 pfor = {"for" ~ whitespace_plus ~ident ~ colon }
 assignment = {ident ~ "(...) = ..."}
+vectorize = { "vectorized" ~ whitespace_plus ~ ident ~ colon }
 
 whitespace = { " " | "\t" }
 whitespace_plus = { whitespace+ }
@@ -26,4 +27,5 @@ sequence_list = {
 sequence =
   { indent_nest ~ produce
   | indent_nest ~ pfor
-  | indent_nest ~ assignment }
+  | indent_nest ~ assignment
+  | indent_nest ~ vectorize }

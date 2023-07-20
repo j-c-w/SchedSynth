@@ -11,7 +11,7 @@ struct LoopParser;
 
 #[derive(Clone)]
 pub struct Variable {
-    name: String
+    pub name: String
 }
 
 #[derive(Clone)]
@@ -19,6 +19,7 @@ pub enum SketchAST { // nodes have nesting, <other stuff>
     Produce(i32, Variable, Box<SketchAST>), // name, contents
     For(i32, Variable, Box<SketchAST>), // variable name, sub-contents
     Assign(i32, Variable), // variable name
+    Vectorize(i32, Variable, Box<SketchAST>), // variable name, sub-contents
     ASTVariable(i32, Variable), // just a plain variable --- not valid on it's own, but is usefule as
                                 // an intermediate wrapper.
     Sequence(i32, Vec<SketchAST>) // list of sub-asts
@@ -46,6 +47,8 @@ impl ToString for SketchAST {
             SketchAST::For(_, n, subelts) => format!("For {} ({})", n.to_string().clone(),
             subelts.to_string()),
             SketchAST::Assign(_, n) => format!("{} = ...", n.to_string().clone()),
+            SketchAST::Vectorize(_, n, child) => format!("vectorized {} ({})",
+            n.to_string().clone(), child.to_string()),
             SketchAST::Sequence(_, subvars) => format!("Sequence({})", subvars.iter().map(|x|
                     x.to_string()).collect::<Vec<String>>().join(",")),
                     SketchAST::ASTVariable(_, name) => format!("Variable {}", name.to_string().clone())
@@ -71,6 +74,11 @@ impl AST for SketchAST {
                 let res = Vec::new();
                 res
             },
+            SketchAST::Vectorize(_nest, _n, children) => {
+                let mut res = Vec::new();
+                res.push(children.as_ref().clone());
+                res
+            }
             SketchAST::Sequence(_nest, children) => children.to_vec(),
             SketchAST::ASTVariable(_nest, _varname) => {
                 let res = Vec::new();
@@ -84,6 +92,7 @@ impl AST for SketchAST {
             SketchAST::Produce(_, _, _) => "Produce".into(),
             SketchAST::For(_, _, _) => "For".into(),
             SketchAST::Assign(_, _) => "Assign".into(),
+            SketchAST::Vectorize(_, _, _) => "Vectorize".into(),
             SketchAST::Sequence(_, _) => "Sequence".into(),
             SketchAST::ASTVariable(_, _) => "Variable".into()
         }
@@ -95,6 +104,7 @@ impl AST for SketchAST {
             SketchAST::For(_, _, child) => child.size() + 1,
             SketchAST::Assign(_, _) => 1,
             SketchAST::Sequence(_, children) => children.iter().map(|child| child.size()).sum(),
+            SketchAST::Vectorize(_, _, child) => child.size() + 1,
             SketchAST::ASTVariable(_, _) => 1
         }
     }
@@ -200,6 +210,21 @@ fn process(opts: &Options, nesting_depth: i32, sequence: Pair<Rule>) -> SketchAS
 
             SketchAST::Assign(nesting_depth, ident)
         }
+        Rule::vectorize => {
+            if opts.debug_parser {
+                println!("Got a vectorize");
+            }
+
+            let mut inner = sequence.into_inner();
+            let _ = inner.next(); // whitespace token
+            // let _ = inner.next(); // whitespace
+            let ident = match process(opts, nesting_depth, inner.next().unwrap()) {
+                SketchAST::ASTVariable(_, n) => n,
+                _ => panic!("Unexpected non variable")
+            };
+            SketchAST::Vectorize(nesting_depth, ident,
+                Box::new(SketchAST::Sequence(nesting_depth, Vec::new())))
+        }
         Rule::ident => {
             if opts.debug_parser {
                 println!("Got an ident");
@@ -232,6 +257,7 @@ fn get_nest_depth(v: &SketchAST) -> &i32 {
         SketchAST::For(n, _, _) => n,
         SketchAST::Assign(n, _) => n,
         SketchAST::Sequence(n, _) => n,
+        SketchAST::Vectorize(n, _, _) => n,
         SketchAST::ASTVariable(n, _) => n
     }
 }
@@ -246,6 +272,10 @@ fn set_nest(v: &SketchAST, nest: SketchAST) -> SketchAST {
         SketchAST::For(n, var, current_nest) => {
             assert!(current_nest.size() == 0); // check we aren't deleting anything
             SketchAST::For(n.clone(), var.clone(), Box::new(nest))
+        }
+        SketchAST::Vectorize(n, var, current_nest) => {
+            assert!(current_nest.size() == 0); // check we aren't deleting anything
+            SketchAST::Vectorize(n.clone(), var.clone(), Box::new(nest))
         }
         SketchAST::Assign(_n, _var) => panic!("Can't set nest to an assign"),
         SketchAST::Sequence(_n, _nest) => panic!("Can't set nest to a sequence"),
