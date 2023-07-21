@@ -362,7 +362,6 @@ fn nest(parsed: SketchAST) -> SketchAST {
 
 pub fn parse(opts: &Options, filename: &String) -> SketchAST {
     let input = fs::read_to_string(filename).expect("Unable to read file");
-    println!("{}", input);
     let mut sequence = LoopParser::parse(Rule::sequence_list, &input[..]).unwrap();
     // Parse into a flat structure.
     let parsed = process(opts, 0, sequence.next().unwrap());
