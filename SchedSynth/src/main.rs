@@ -3,6 +3,7 @@ mod gen;
 mod options;
 mod sketch_parse;
 mod synth;
+mod utils;
 
 fn main() {
     let options = options::options::parse_options();

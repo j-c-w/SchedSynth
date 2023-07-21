@@ -1,5 +1,7 @@
 use crate::options::options::Options;
 use crate::ast::reorder_infer::get_reorders_internal;
+use crate::ast::split_infer::find_splits_internal;
+use crate::ast::split_infer::Reshape;
 
 #[derive(Clone,Hash,Eq,PartialEq)]
 pub struct Var {
@@ -14,6 +16,12 @@ pub enum AST {
     Assign(Var),
     Vectorize(Var, Box<AST>),
     Sequence(Vec<AST>)
+}
+
+
+// TODO -- what to return?
+pub fn find_splits(opts: &Options, original_ast: &AST, target_ast: &AST) -> Vec<Reshape> {
+    find_splits_internal(opts, original_ast, target_ast)
 }
 
 pub fn find_reorders(opts: &Options, original_ast: &AST, target_ast: &AST) -> Vec<(Var, Var, Var)> {

@@ -3,6 +3,7 @@ use crate::gen::halide::HalideCommand;
 use crate::gen::halide::HFunc;
 use crate::gen::halide::HVar;
 use crate::ast::ast::*;
+use crate::ast::split_infer::Reshape;
 use crate::options::options::Options;
 
 // Conert the the pairs of func and variable into
@@ -45,8 +46,37 @@ fn to_halide_reorder(commands: Vec<(Var, Var, Var)>) -> Vec<HalideCommand> {
     halide_commands
 }
 
+// the internal finder returns Reshape::Split(Var, (Var, Var)) which needs to be converted
+// into HalideCommand::Split and Reshape::Fuse((Var, Var), Var) which needs to be converted
+// into HalideCommand::Fuse
+fn to_halide_reshape(commands: Vec<Reshape>) -> Vec<HalideCommand> {
+    let mut halide_commands = Vec::new();
+    for command in commands {
+        match command {
+            // TODO -- figure out how to get the producer name into here.
+            Reshape::Split(var, (var1, var2), factor) => {
+                let hfunc = HFunc { name: var.producer };
+                let hvar = HVar { name: var.name };
+                let hvar1 = HVar { name: var1.name };
+                let hvar2 = HVar { name: var2.name };
+                halide_commands.push(HalideCommand::Split(hfunc, hvar, (hvar1, hvar2), factor));
+            }
+            Reshape::Fuse((var1, var2), var) => {
+                let hfunc = HFunc { name: var.producer };
+                let hvar = HVar { name: var.name };
+                let hvar1 = HVar { name: var1.name };
+                let hvar2 = HVar { name: var2.name };
+                halide_commands.push(HalideCommand::Fuse(hfunc, (hvar1, hvar2), hvar));
+            }
+            _ => panic!("Unsupported Reshape command"),
+        }
+    }
+    halide_commands
+}
+
 fn synthesize_candidates(opts: &Options, source: &AST, target: &AST) -> Vec<HalideProgram> {
     // Go through the various halide exprs and get the calls for them.
+    let splits = to_halide_reshape(crate::ast::ast::find_splits(opts, source, target));
     let reorder_calls = to_halide_reorder(crate::ast::ast::find_reorders(opts, source, target));
     let compute_at_calls = to_halide_compute_at(crate::ast::ast::get_compute_at(opts, target));
     let vectorize_calls = to_halide_vectorize(crate::ast::ast::get_vectorized(opts, target));
