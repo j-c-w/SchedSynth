@@ -57,6 +57,7 @@ fn synthesize_candidates(opts: &Options, source: &AST, target: &AST) -> Vec<Hali
     let mut unambiguous_calls = Vec::new();
     unambiguous_calls.extend(compute_at_calls);
     unambiguous_calls.extend(vectorize_calls);
+	unambiguous_calls.extend(reorder_calls);
 
     return vec![
         HalideProgram { commands: unambiguous_calls }

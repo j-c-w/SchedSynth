@@ -69,14 +69,31 @@ pub fn get_reorders_internal(opts: &Options, original_ast: &AST, target_ast: &AS
             .flat_map(|(v, original_v)| {
                 original_v
                     .iter()
-                    TODO --- need to do this properly --- load from target_comes_before
-                    .filter(|x| target_v.contains(x))
+					// v -> x is a relation.
+					// Check if x -> v is also a relation
+                    .filter(|x| {
+						// get the x map
+						let xmap = target_comes_before.get(x).unwrap_or(&empty_set);
+						let res = xmap.contains(v); // if this is true, then we have that this was in here
+							// both forwards and backwards.
+						if opts.debug_reorder {
+							println!("{} -> {} exists, checking if it js violated: {}", v.clone(), x, res);
+						};
+						res
+					})
                     .map(move |x| (producer.clone(), v.clone(), x.clone()))
             })
             .collect::<Vec<_>>().to_vec();
+		if opts.debug_reorder {
+			println!("Result map is of size {}", differences.len());
+		};
 
         reversed_orders.append(&mut differences)
     }
+
+	if opts.debug_reorder {
+		println!("In total, have {} reorders", reversed_orders.len());
+	};
     reversed_orders
 }
 
