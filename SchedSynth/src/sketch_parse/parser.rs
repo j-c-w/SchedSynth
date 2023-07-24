@@ -15,15 +15,19 @@ pub struct Variable {
 }
 
 #[derive(Clone)]
+pub enum RangeAST {
+    Between(i32, i32), // start, end
+    All()
+}
+
+#[derive(Clone)]
 pub enum SketchAST { // nodes have nesting, <other stuff>
     Produce(i32, Variable, Box<SketchAST>), // name, contents
     Consume(i32, Variable, Box<SketchAST>), // name, contents
-    For(i32, Variable, Box<SketchAST>), // variable name, sub-contents
+    For(i32, Variable, Box<SketchAST>, RangeAST), // variable name, sub-contents, optional range
     Assign(i32, Variable), // variable name
-    Vectorize(i32, Variable, Box<SketchAST>), // variable name, sub-contents
-    ASTVariable(i32, Variable), // just a plain variable --- not valid on it's own, but is usefule as
-                                // an intermediate wrapper.
-    Sequence(i32, Vec<SketchAST>) // list of sub-asts
+    Vectorize(i32, Variable, Box<SketchAST>, RangeAST), // variable name, sub-contents, optional range
+    Sequence(i32, Vec<SketchAST>), // list of sub-asts
 }
 
 
@@ -40,6 +44,15 @@ impl ToString for Variable {
     }
 }
 
+impl ToString for RangeAST {
+    fn to_string(&self) -> String {
+        match self {
+            RangeAST::Between(start, end) => format!("{}..{}", start, end),
+            RangeAST::All() => String::from("all"),
+        }
+    }
+}
+
 impl ToString for SketchAST {
     fn to_string(&self) -> String {
         match self {
@@ -47,14 +60,13 @@ impl ToString for SketchAST {
             subelts.to_string()),
             SketchAST::Consume(_, n, subelts) => format!("Consume {} ({})", n.to_string().clone(),
             subelts.to_string()),
-            SketchAST::For(_, n, subelts) => format!("For {} ({})", n.to_string().clone(),
-            subelts.to_string()),
+            SketchAST::For(_, n, subelts, range) => format!("For {} in {}: ({})", n.to_string().clone(),
+            range.to_string(), subelts.to_string()),
             SketchAST::Assign(_, n) => format!("{} = ...", n.to_string().clone()),
-            SketchAST::Vectorize(_, n, child) => format!("vectorized {} ({})",
-            n.to_string().clone(), child.to_string()),
+            SketchAST::Vectorize(_, n, child, range) => format!("vectorized {} in {}: ({})",
+            n.to_string().clone(), range.to_string(), child.to_string()),
             SketchAST::Sequence(_, subvars) => format!("Sequence({})", subvars.iter().map(|x|
                     x.to_string()).collect::<Vec<String>>().join(",")),
-                    SketchAST::ASTVariable(_, name) => format!("Variable {}", name.to_string().clone())
         }
     }
 
@@ -73,7 +85,7 @@ impl AST for SketchAST {
                 res.push(children.as_ref().clone());
                 res
             },
-            SketchAST::For(_nest, _n, children) => {
+            SketchAST::For(_nest, _n, children, _range) => {
                 let mut res = Vec::new();
                 res.push(children.as_ref().clone());
                 res
@@ -82,16 +94,12 @@ impl AST for SketchAST {
                 let res = Vec::new();
                 res
             },
-            SketchAST::Vectorize(_nest, _n, children) => {
+            SketchAST::Vectorize(_nest, _n, children, _range) => {
                 let mut res = Vec::new();
                 res.push(children.as_ref().clone());
                 res
             }
             SketchAST::Sequence(_nest, children) => children.to_vec(),
-            SketchAST::ASTVariable(_nest, _varname) => {
-                let res = Vec::new();
-                res
-            }
         }
     }
 
@@ -99,11 +107,10 @@ impl AST for SketchAST {
         match self {
             SketchAST::Produce(_, _, _) => "Produce".into(),
             SketchAST::Consume(_, _, _) => "Consume".into(),
-            SketchAST::For(_, _, _) => "For".into(),
+            SketchAST::For(_, _, _, _) => "For".into(),
             SketchAST::Assign(_, _) => "Assign".into(),
-            SketchAST::Vectorize(_, _, _) => "Vectorize".into(),
+            SketchAST::Vectorize(_, _, _, _) => "Vectorize".into(),
             SketchAST::Sequence(_, _) => "Sequence".into(),
-            SketchAST::ASTVariable(_, _) => "Variable".into()
         }
     }
 
@@ -111,12 +118,64 @@ impl AST for SketchAST {
         match self {
             SketchAST::Produce(_, _, child) => child.size() + 1,
             SketchAST::Consume(_, _, child) => child.size() + 1,
-            SketchAST::For(_, _, child) => child.size() + 1,
+            SketchAST::For(_, _, child, _) => child.size() + 1,
             SketchAST::Assign(_, _) => 1,
             SketchAST::Sequence(_, children) => children.iter().map(|child| child.size()).sum(),
-            SketchAST::Vectorize(_, _, child) => child.size() + 1,
-            SketchAST::ASTVariable(_, _) => 1
+            SketchAST::Vectorize(_, _, child, _) => child.size() + 1,
         }
+    }
+}
+
+fn process_ident(opts: &Options, sequence: Pair<Rule>) -> Variable {
+    match sequence.as_rule() {
+        Rule::ident => {
+            if opts.debug_parser {
+                println!("Got an ident");
+            }
+            let name = sequence.as_str();
+            Variable{name: name.into()}
+        },
+        _ => panic!("Unable to process non-ident sequence into variable")
+    }
+}
+
+fn process_range(opts: &Options, sequence: Pair<Rule>) -> RangeAST {
+    match sequence.as_rule() {
+        Rule::optional_range => {
+            // whitespace
+            let mut inner = sequence.into_inner();
+
+            // we have a rnage
+            if inner.len() > 0 {
+                // range
+                let mut range = inner.next().unwrap().into_inner();
+
+                println!("Range is {}", range);
+                let _ = range.next(); // whitespace
+                //let _ = range.next(); // in
+                let _ = range.next(); // whitespace
+                //let _ = range.next(); // [
+                let start = range.next().unwrap().as_str().parse::<i32>().unwrap(); // start
+                let _ = range.next(); // whitespace
+                // let _ = range.next(); // ,
+                let _ = range.next(); // whitespace
+                let end = range.next().unwrap().as_str().parse::<i32>().unwrap(); // end
+                let res = RangeAST::Between(start, end);
+
+                if opts.debug_parser {
+                    println!("Parsed a range of {}", res.to_string());
+                }
+
+                res
+            } else {
+                if opts.debug_parser {
+                    println!("Parsed a range of all") 
+                }
+                // no range
+                RangeAST::All()
+            }
+        },
+        _ => panic!("Must pass optinal_range to process_range")
     }
 }
 
@@ -181,10 +240,7 @@ fn process(opts: &Options, nesting_depth: i32, sequence: Pair<Rule>) -> SketchAS
 
             let _title = inner.next(); // produce
                                        // let _ = inner.next(); // whitespace
-            let ident = match process(opts, nesting_depth, inner.next().unwrap()) {
-                SketchAST::ASTVariable(_, n) => n,
-                _ => panic!("Unexpected non varaiblae")
-            }; // identifier.
+            let ident = process_ident(opts, inner.next().unwrap());
 
             // Parser produces un-nested code --- nest it later.
             SketchAST::Produce(nesting_depth, ident,
@@ -198,10 +254,7 @@ fn process(opts: &Options, nesting_depth: i32, sequence: Pair<Rule>) -> SketchAS
 
             let _title = inner.next(); // consume
 		    // let _ = inner.next(); // whitespace
-            let ident = match process(opts, nesting_depth, inner.next().unwrap()) {
-                SketchAST::ASTVariable(_, n) => n,
-                _ => panic!("Unexpected non varaiblae")
-            }; // identifier.
+            let ident = process_ident(opts, inner.next().unwrap());
 
             // Parser produces un-nested code --- nest it later.
             SketchAST::Consume(nesting_depth, ident,
@@ -215,14 +268,13 @@ fn process(opts: &Options, nesting_depth: i32, sequence: Pair<Rule>) -> SketchAS
 
             let _title = inner.next(); // for
                                        // let _ = inner.next(); // whitespace
-            let ident = match process(opts, nesting_depth, inner.next().unwrap()) {
-                SketchAST::ASTVariable(_, n) => n,
-                _ => panic!("Unexpected non varaiblae")
-            }; // identifier.
+            let ident = process_ident(opts, inner.next().unwrap());
+            let range = process_range(opts, inner.next().unwrap());
 
             // Parser produces un-nested code --- nest it later.
             SketchAST::For(nesting_depth, ident,
-                Box::new(SketchAST::Sequence(nesting_depth, Vec::new())))
+                Box::new(SketchAST::Sequence(nesting_depth, Vec::new())),
+                range)
         },
         Rule::assignment => {
             if opts.debug_parser {
@@ -230,10 +282,7 @@ fn process(opts: &Options, nesting_depth: i32, sequence: Pair<Rule>) -> SketchAS
             }
             let mut inner = sequence.into_inner();
 
-            let ident = match process(opts, nesting_depth, inner.next().unwrap()) {
-                SketchAST::ASTVariable(_, n) => n,
-                _ => panic!("Unexpected non varaiblae")
-            }; // identifier.
+            let ident = process_ident(opts, inner.next().unwrap());
 
             SketchAST::Assign(nesting_depth, ident)
         }
@@ -245,20 +294,13 @@ fn process(opts: &Options, nesting_depth: i32, sequence: Pair<Rule>) -> SketchAS
             let mut inner = sequence.into_inner();
             let _ = inner.next(); // whitespace token
             // let _ = inner.next(); // whitespace
-            let ident = match process(opts, nesting_depth, inner.next().unwrap()) {
-                SketchAST::ASTVariable(_, n) => n,
-                _ => panic!("Unexpected non variable")
-            };
+            let ident = process_ident(opts, inner.next().unwrap());
+            let range = process_range(opts, inner.next().unwrap());
+
             SketchAST::Vectorize(nesting_depth, ident,
-                Box::new(SketchAST::Sequence(nesting_depth, Vec::new())))
+                Box::new(SketchAST::Sequence(nesting_depth, Vec::new())),
+                range)
         }
-        Rule::ident => {
-            if opts.debug_parser {
-                println!("Got an ident");
-            }
-            let name = sequence.as_str();
-            SketchAST::ASTVariable(nesting_depth, Variable{name: name.into()})
-        },
         Rule::EOI => {
             if opts.debug_parser {
                 println!("Got an EOI");
@@ -282,11 +324,10 @@ fn get_nest_depth(v: &SketchAST) -> &i32 {
     match v {
         SketchAST::Produce(n, _, _) => n,
         SketchAST::Consume(n, _, _) => n,
-        SketchAST::For(n, _, _) => n,
+        SketchAST::For(n, _, _, _) => n,
         SketchAST::Assign(n, _) => n,
         SketchAST::Sequence(n, _) => n,
-        SketchAST::Vectorize(n, _, _) => n,
-        SketchAST::ASTVariable(n, _) => n
+        SketchAST::Vectorize(n, _, _, _) => n,
     }
 }
 
@@ -301,17 +342,16 @@ fn set_nest(v: &SketchAST, nest: SketchAST) -> SketchAST {
             assert!(current_nest.size() == 0); // check we aren't deleting anything
             SketchAST::Consume(n.clone(), var.clone(), Box::new(nest))
         },
-        SketchAST::For(n, var, current_nest) => {
+        SketchAST::For(n, var, current_nest, range) => {
             assert!(current_nest.size() == 0); // check we aren't deleting anything
-            SketchAST::For(n.clone(), var.clone(), Box::new(nest))
+            SketchAST::For(n.clone(), var.clone(), Box::new(nest), range.clone())
         }
-        SketchAST::Vectorize(n, var, current_nest) => {
+        SketchAST::Vectorize(n, var, current_nest, range) => {
             assert!(current_nest.size() == 0); // check we aren't deleting anything
-            SketchAST::Vectorize(n.clone(), var.clone(), Box::new(nest))
+            SketchAST::Vectorize(n.clone(), var.clone(), Box::new(nest), range.clone())
         }
         SketchAST::Assign(_n, _var) => panic!("Can't set nest to an assign"),
         SketchAST::Sequence(_n, _nest) => panic!("Can't set nest to a sequence"),
-        SketchAST::ASTVariable(_n, _var) => panic!("Can't set nest to a variable")
     }
 }
 

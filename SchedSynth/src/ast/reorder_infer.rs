@@ -132,7 +132,7 @@ fn get_orders(opts: &Options, ast: &AST, current_producer: &Option<Var>,
             // cases where it should?
             get_orders(opts, ast, current_producer, orders);
         },
-        AST::For(var, ast) | AST::Vectorize(var, ast) => {
+        AST::For(var, ast, _range) | AST::Vectorize(var, ast, _range) => {
             // insert var.clone() into the vec in the orders map at the current_producer.
             // if current_producer is None use "_top_level".  If orders hashmap doens't
             // have current_producer, then create a new singleton vec for it.

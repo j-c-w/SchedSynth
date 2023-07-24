@@ -54,15 +54,15 @@ fn to_halide_reshape(commands: Vec<Reshape>) -> Vec<HalideCommand> {
     for command in commands {
         match command {
             // TODO -- figure out how to get the producer name into here.
-            Reshape::Split(var, (var1, var2), factor) => {
-                let hfunc = HFunc { name: var.producer };
+            Reshape::Split(func, var, (var1, var2), factor) => {
+                let hfunc = HFunc { name: func.name };
                 let hvar = HVar { name: var.name };
                 let hvar1 = HVar { name: var1.name };
                 let hvar2 = HVar { name: var2.name };
                 halide_commands.push(HalideCommand::Split(hfunc, hvar, (hvar1, hvar2), factor));
             }
-            Reshape::Fuse((var1, var2), var) => {
-                let hfunc = HFunc { name: var.producer };
+            Reshape::Fuse(func, (var1, var2), var) => {
+                let hfunc = HFunc { name: func.name };
                 let hvar = HVar { name: var.name };
                 let hvar1 = HVar { name: var1.name };
                 let hvar2 = HVar { name: var2.name };
@@ -85,6 +85,8 @@ fn synthesize_candidates(opts: &Options, source: &AST, target: &AST) -> Vec<Hali
     }
 
     let mut unambiguous_calls = Vec::new();
+    unambiguous_calls.extend(splits); // TODO -- splits are ambiguious --- use synthesis to
+                                      // find which splitting is the best strategy?
     unambiguous_calls.extend(compute_at_calls);
     unambiguous_calls.extend(vectorize_calls);
 	unambiguous_calls.extend(reorder_calls);

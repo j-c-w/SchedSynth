@@ -7,8 +7,8 @@ use crate::ast::ast::Var;
 use crate::utils::format::hashset_to_string;
 
 pub enum Reshape {
-    Split(Var, (Var, Var), i32), // split var into (var, var) by factor
-    Fuse((Var, Var), Var)
+    Split(Var, Var, (Var, Var), i32), // under producer var, split var into (var, var) by factor
+    Fuse(Var, (Var, Var), Var)
 }
 
 pub fn find_splits_internal(opts: &Options, original_ast: &AST, target_ast: &AST) -> Vec<Reshape> {
@@ -43,7 +43,8 @@ pub fn find_splits_internal(opts: &Options, original_ast: &AST, target_ast: &AST
     // TODO -- merge any fuses that undo splits.
     let reshapes: Vec<Reshape> = splits
         .iter()
-        .map(|spl| Reshape::Split(spl.0.clone(), spl.1.clone(), 0))
+        // TODO -- need to get the correct func.
+        .map(|spl| Reshape::Split(Var {name: "default_func".into()}, spl.0.clone(), spl.1.clone(), 0))
         .collect();
 
     // TODO --- infer the correct factor for each reshape.
@@ -52,12 +53,19 @@ pub fn find_splits_internal(opts: &Options, original_ast: &AST, target_ast: &AST
 
 // Figure out which variables should be split to create variables_to_create
 fn induce_splits(opts: &Options, variables_from: HashSet<Var>, variables_to_create: HashSet<Var>) -> HashMap<Var, (Var, Var)> { 
+    if opts.debug_split {
+        println!("Building variables {} from variables {}", hashset_to_string(&variables_to_create), hashset_to_string(&variables_from));
+    }
+
     // iterate over variables_to_create --- using the odds_variable_is_split_from(v1, v2) to 
     // determine to put v2 into a vec of candidates for v1 (sorted by the odds)
     let mut candidates: HashMap<Var, Vec<(Var, f32)>> = HashMap::new();
     for v1 in &variables_from {
         for v2 in &variables_to_create {
-            let odds = odds_variable_is_split_from(v1, v2);
+            let odds = odds_variable_is_split_from(v2, v1);
+            if opts.debug_split {
+                println!("Odds {} is split from {} is {}", v1, v2, odds);
+            }
             if odds > 0.0 {
                 let entry = candidates.entry(v1.clone()).or_insert(Vec::new());
                 entry.push((v2.clone(), odds));
@@ -97,6 +105,9 @@ fn induce_splits(opts: &Options, variables_from: HashSet<Var>, variables_to_crea
         };
 
         if into_vars.len() == 2 {
+            if opts.debug_split {
+                println!("Splitting {} into {} and {}", split, into_vars[0], into_vars[1]);
+            }
             splits.insert(split.clone(), (into_vars[0].clone(), into_vars[1].clone()));
         } else {
             // Not every variable has to be split /from/.
@@ -141,7 +152,8 @@ fn odds_variable_is_split_from(variable: &Var, from: &Var) -> f32 {
     let from_name: &String = &from.name;
     let variable_name = &variable.name;
 
-    // TODO --- do a better job at this.
+    // TODO --- do a better job at this. --- need to properly support the 'dot' notation
+    // used in hlaide
     if variable_name.contains(from_name) {
         return 1.0;
     } else {
@@ -163,14 +175,14 @@ fn variables(ast: &AST) -> HashSet<Var> {
             vars.extend(variables(&*ast));
             vars.extend(variables(&*ast));
         },
-        AST::For(var, ast) => {
+        AST::For(var, ast, _range) => {
             vars.insert(var.clone());
             vars.extend(variables(&*ast));
         },
         AST::Assign(_var) => {
             // this is a func var
         },
-        AST::Vectorize(var, ast) => {
+        AST::Vectorize(var, ast, _range) => {
             vars.insert(var.clone());
             vars.extend(variables(&*ast));
         },

@@ -9,12 +9,18 @@ pub struct Var {
 }
 
 #[derive(Clone)]
+pub enum Range {
+    Between(i32, i32),
+    All()
+}
+
+#[derive(Clone)]
 pub enum AST {
     Produce(Var, Box<AST>),
     Consume(Var, Box<AST>),
-    For(Var, Box<AST>),
+    For(Var, Box<AST>, Range),
     Assign(Var),
-    Vectorize(Var, Box<AST>),
+    Vectorize(Var, Box<AST>, Range),
     Sequence(Vec<AST>)
 }
 
@@ -56,7 +62,7 @@ fn get_compute_at_internal(opts: &Options, ast: &AST, outer_producer: &Option<Va
             // anything to do with this.
             get_compute_at_internal(opts, ast, outer_producer, inner_producer)
         },
-        AST::For(var, subast) | AST::Vectorize(var, subast) => {
+        AST::For(var, subast, _range) | AST::Vectorize(var, subast, _range) => {
             // These are compute loops --- if both producers are set,
             // then we recurse here.
             match (outer_producer, inner_producer) {
@@ -111,7 +117,7 @@ fn get_vectorized_internal(_opts: &Options, ast: &AST, current_producer: &Option
 			// Do not update the producer for a consume
             get_vectorized_internal(_opts, ast, current_producer)
         },
-        AST::Vectorize(var, children) => {
+        AST::Vectorize(var, children, _range) => {
             match current_producer {
                 Some(p_name) => {
                     let mut v = get_vectorized_internal(_opts, children, current_producer);
@@ -121,7 +127,7 @@ fn get_vectorized_internal(_opts: &Options, ast: &AST, current_producer: &Option
                 None => panic!("Vectorize without corresponding producer")
             }
         },
-        AST::For(_, ast) => get_vectorized_internal(_opts, ast, current_producer),
+        AST::For(_, ast, _range) => get_vectorized_internal(_opts, ast, current_producer),
         AST::Assign(_) => Vec::new(),
         AST::Sequence(seq) => {
             // recurse on each element of seq, and join the results into a single vec

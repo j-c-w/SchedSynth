@@ -53,7 +53,7 @@ impl ToString for HalideCommand {
                 format!("{}.reorder({}, {})", func1.to_string(), var1.to_string(), var2.to_string())
             }
             HalideCommand::Split(func, var1, (var2, var3), factor) => {
-                format!("{}.split({}, {}, {}, {})", func_to_string(), var1.to_string(), var2.to_string(), var3.to_string(), factor.to_string())
+                format!("{}.split({}, {}, {}, {})", func.to_string(), var1.to_string(), var2.to_string(), var3.to_string(), factor.to_string())
             }
             HalideCommand::Fuse(func, (var1, var2), var3) => {
                 format!("{}.fuse({}, {}, {})", func.to_string(), var1.to_string(), var2.to_string(), var3.to_string())
