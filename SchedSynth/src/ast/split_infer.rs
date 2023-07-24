@@ -2,7 +2,10 @@ use crate::options::options::Options;
 use std::collections::HashMap;
 use std::collections::HashSet;
 use crate::ast::ast::AST;
+use crate::ast::ast::Range;
 use crate::ast::ast::Var;
+
+use crate::ast::analysis::range_table_for;
 
 use crate::utils::format::hashset_to_string;
 
@@ -15,6 +18,9 @@ pub fn find_splits_internal(opts: &Options, original_ast: &AST, target_ast: &AST
     // First, go through and find variables that are differnet between these two ASTs.
     let original_variables = variables(original_ast);
     let target_variables = variables(target_ast);
+
+    // let func_table = function_table_for(original_ast);
+    let range_table = range_table_for(opts, target_ast); // Get a lookup table that maps variables to ranges.
 
 
     // Now, we need to go through and create plausible mappings between
@@ -44,7 +50,15 @@ pub fn find_splits_internal(opts: &Options, original_ast: &AST, target_ast: &AST
     let reshapes: Vec<Reshape> = splits
         .iter()
         // TODO -- need to get the correct func.
-        .map(|spl| Reshape::Split(Var {name: "default_func".into()}, spl.0.clone(), spl.1.clone(), 0))
+        .map(|spl| {
+            // We get the split factor by the range of the inner loop --- that's
+            // what Halide will tile into.
+            let split_factor = split_factor_from_range(range_table.get(&spl.1.1));
+            if opts.debug_split {
+                println!("Building split: {} -> ({}, {}) with factor {}", spl.0.clone(), spl.1.0.clone(), spl.1.1.clone(), split_factor);
+            }
+            Reshape::Split(Var {name: "default_func".into()}, spl.0.clone(), spl.1.clone(), split_factor)
+        })
         .collect();
 
     // TODO --- infer the correct factor for each reshape.
@@ -193,4 +207,16 @@ fn variables(ast: &AST) -> HashSet<Var> {
         }
     }
     vars
+}
+
+// get a factor to use in split from the Range --- if unknown we
+// return 0 --- otherwise it should be the size of the stride
+// in between (i.e. top - bottom)
+fn split_factor_from_range(range: Option<&Range>) -> i32 {
+    match range {
+        Some(Range::Between(bottom, top)) => top - bottom,
+        _ => 0 // TODO -- I'm not really sure what split does with
+               // zeroes --- should we return something like -1 to
+               // make it more clear thta this si unexepcted? (Is it?)
+    }
 }
