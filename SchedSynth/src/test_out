@@ -1,5 +1,5 @@
 produce cons:
   for y:
-    vectorized x.x_outer:
-        vectorized x.x_inner in [0, 4]:
+    vectorized a:
+        vectorized b in [0, 4]:
           cons(...) = ...

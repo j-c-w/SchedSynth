@@ -3,12 +3,12 @@ use crate::gen::halide::HalideCommand;
 use crate::gen::halide::HFunc;
 use crate::gen::halide::HVar;
 use crate::ast::ast::*;
-use crate::ast::split_infer::Reshape;
+use crate::reshape::reshape::Reshape;
 use crate::options::options::Options;
 
 // Conert the the pairs of func and variable into
 // vectorize halide commands.
-fn to_halide_vectorize(commands: Vec<(Var, Var)>) -> Vec<HalideCommand> {
+fn to_halide_vectorize(commands: Vec<(Func, Var)>) -> Vec<HalideCommand> {
     // the first far is the func, and the second var is the variable
     // to vectorize (hvar).
     let mut halide_commands = Vec::new();
@@ -22,7 +22,7 @@ fn to_halide_vectorize(commands: Vec<(Var, Var)>) -> Vec<HalideCommand> {
 
 // turn the var var var into this:
 // ComputeAt(HFunc, HFunc, HVar) // Compute func at func at varaiable
-fn to_halide_compute_at(commands: Vec<(Var, Var, Var)>) -> Vec<HalideCommand> {
+fn to_halide_compute_at(commands: Vec<(Func, Func, Var)>) -> Vec<HalideCommand> {
     let mut halide_commands = Vec::new();
     for (func, compute_at_func, hvar) in commands {
         let hfunc = HFunc { name: func.name };
@@ -35,7 +35,7 @@ fn to_halide_compute_at(commands: Vec<(Var, Var, Var)>) -> Vec<HalideCommand> {
 
 // turn the var var var into this:
 // Reorder(HFunc, HVar, HVar) // Compute func at func at varaiable
-fn to_halide_reorder(commands: Vec<(Var, Var, Var)>) -> Vec<HalideCommand> {
+fn to_halide_reorder(commands: Vec<(Func, Var, Var)>) -> Vec<HalideCommand> {
  let mut halide_commands = Vec::new();
     for (func, compute_at_func, hvar) in commands {
         let hfunc = HFunc { name: func.name };
@@ -49,34 +49,33 @@ fn to_halide_reorder(commands: Vec<(Var, Var, Var)>) -> Vec<HalideCommand> {
 // the internal finder returns Reshape::Split(Var, (Var, Var)) which needs to be converted
 // into HalideCommand::Split and Reshape::Fuse((Var, Var), Var) which needs to be converted
 // into HalideCommand::Fuse
-fn to_halide_reshape(commands: Vec<Reshape>) -> Vec<HalideCommand> {
+fn to_halide_reshape(commands: &Vec<Reshape>) -> Vec<HalideCommand> {
     let mut halide_commands = Vec::new();
     for command in commands {
         match command {
             // TODO -- figure out how to get the producer name into here.
             Reshape::Split(func, var, (var1, var2), factor) => {
-                let hfunc = HFunc { name: func.name };
-                let hvar = HVar { name: var.name };
-                let hvar1 = HVar { name: var1.name };
-                let hvar2 = HVar { name: var2.name };
-                halide_commands.push(HalideCommand::Split(hfunc, hvar, (hvar1, hvar2), factor));
-            }
+                let hfunc = HFunc { name: func.name.clone() };
+                let hvar = HVar { name: var.name.clone() };
+                let hvar1 = HVar { name: var1.name.clone() };
+                let hvar2 = HVar { name: var2.name.clone() };
+                halide_commands.push(HalideCommand::Split(hfunc, hvar, (hvar1, hvar2), factor.clone()));
+            },
             Reshape::Fuse(func, (var1, var2), var) => {
-                let hfunc = HFunc { name: func.name };
-                let hvar = HVar { name: var.name };
-                let hvar1 = HVar { name: var1.name };
-                let hvar2 = HVar { name: var2.name };
+                let hfunc = HFunc { name: func.name.clone() };
+                let hvar = HVar { name: var.name.clone() };
+                let hvar1 = HVar { name: var1.name.clone() };
+                let hvar2 = HVar { name: var2.name.clone() };
                 halide_commands.push(HalideCommand::Fuse(hfunc, (hvar1, hvar2), hvar));
-            }
-            _ => panic!("Unsupported Reshape command"),
+            },
         }
     }
     halide_commands
 }
 
-fn synthesize_candidates(opts: &Options, source: &AST, target: &AST) -> Vec<HalideProgram> {
+fn synthesize_candidates(opts: &Options, source: &AST, target: &AST, reshapes: &Vec<Reshape>) -> Vec<HalideProgram> {
     // Go through the various halide exprs and get the calls for them.
-    let splits = to_halide_reshape(crate::ast::ast::find_splits(opts, source, target));
+    let splits = to_halide_reshape(reshapes);
     let reorder_calls = to_halide_reorder(crate::ast::ast::find_reorders(opts, source, target));
     let compute_at_calls = to_halide_compute_at(crate::ast::ast::get_compute_at(opts, target));
     let vectorize_calls = to_halide_vectorize(crate::ast::ast::get_vectorized(opts, target));
@@ -96,9 +95,9 @@ fn synthesize_candidates(opts: &Options, source: &AST, target: &AST) -> Vec<Hali
     ]
 }
 
-pub fn synthesize_from_sketch(opts: &Options, source: &AST, target: &AST) ->
+pub fn synthesize_from_sketch(opts: &Options, source: &AST, target: &AST, reshapes: &Vec<Reshape>) ->
 HalideProgram {
-    let candidates = synthesize_candidates(opts, source, target);
+    let candidates = synthesize_candidates(opts, source, target, reshapes);
     // todo -- pick best
     return candidates[0].clone()
 }

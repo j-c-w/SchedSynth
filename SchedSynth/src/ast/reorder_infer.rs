@@ -3,6 +3,7 @@ use std::collections::HashMap;
 use std::collections::HashSet;
 use crate::ast::ast::AST;
 use crate::ast::ast::Var;
+use crate::ast::ast::Func;
 
 // We want to walk through each AST, and record
 // the order that Vars are mentioned in (see get_orders below) --- this is
@@ -12,9 +13,9 @@ use crate::ast::ast::Var;
 //  once we have the two lists, we look for places
 //  where the vars are in different orders, and return
 //  each pair of those
-pub fn get_reorders_internal(opts: &Options, original_ast: &AST, target_ast: &AST) -> Vec<(Var, Var, Var)> {
-    let mut original_order = HashMap::<Var, Vec<Var>>::new();
-    let mut target_order = HashMap::<Var, Vec<Var>>::new();
+pub fn get_reorders_internal(opts: &Options, original_ast: &AST, target_ast: &AST) -> Vec<(Func, Var, Var)> {
+    let mut original_order = HashMap::<Func, Vec<Var>>::new();
+    let mut target_order = HashMap::<Func, Vec<Var>>::new();
     get_orders(opts, &original_ast, &None, &mut original_order);
     get_orders(opts, &target_ast, &None, &mut target_order);
 
@@ -64,7 +65,7 @@ pub fn get_reorders_internal(opts: &Options, original_ast: &AST, target_ast: &AS
         // Note that absence is not a difference --- e.g. x in original[v]
         // and x not in target[v].  We are looking for all the x such
         // that x in original[v] and v in target[x].
-        let mut differences: Vec<(Var, Var, Var)> = original_comes_before
+        let mut differences: Vec<(Func, Var, Var)> = original_comes_before
             .iter()
             .flat_map(|(v, original_v)| {
                 original_v
@@ -116,8 +117,8 @@ fn build_comes_before_map(input: &Vec<Var>) -> HashMap<Var, HashSet<Var>> {
 
 // Walk through the AST and record the order of vars
 // put in a table entry for each producer.
-fn get_orders(opts: &Options, ast: &AST, current_producer: &Option<Var>,
-        orders: &mut HashMap<Var, Vec<Var>>) {
+fn get_orders(opts: &Options, ast: &AST, current_producer: &Option<Func>,
+        orders: &mut HashMap<Func, Vec<Var>>) {
     match ast {
         AST::Produce(var, ast) => {
             // into a new producer --- this gets a new var ordering.
@@ -136,7 +137,7 @@ fn get_orders(opts: &Options, ast: &AST, current_producer: &Option<Var>,
             // insert var.clone() into the vec in the orders map at the current_producer.
             // if current_producer is None use "_top_level".  If orders hashmap doens't
             // have current_producer, then create a new singleton vec for it.
-            let producer_name = current_producer.clone().unwrap_or(Var{ name: "_top_level".to_string()});
+            let producer_name = current_producer.clone().unwrap_or(Func{ name: "_top_level".to_string()});
             let order_vec = orders.entry(producer_name).or_insert(vec![]);
             order_vec.push(var.clone());
             

@@ -1,10 +1,13 @@
 use crate::options::options::Options;
 use crate::ast::reorder_infer::get_reorders_internal;
-use crate::ast::split_infer::find_splits_internal;
-use crate::ast::split_infer::Reshape;
 
 #[derive(Clone,Hash,Eq,PartialEq)]
 pub struct Var {
+    pub name: String
+}
+
+#[derive(Clone,Hash,Eq,PartialEq)]
+pub struct Func {
     pub name: String
 }
 
@@ -16,26 +19,21 @@ pub enum Range {
 
 #[derive(Clone)]
 pub enum AST {
-    Produce(Var, Box<AST>),
-    Consume(Var, Box<AST>),
+    Produce(Func, Box<AST>),
+    Consume(Func, Box<AST>),
     For(Var, Box<AST>, Range),
-    Assign(Var),
+    Assign(Func),
     Vectorize(Var, Box<AST>, Range),
     Sequence(Vec<AST>)
 }
 
 
-// TODO -- what to return?
-pub fn find_splits(opts: &Options, original_ast: &AST, target_ast: &AST) -> Vec<Reshape> {
-    find_splits_internal(opts, original_ast, target_ast)
-}
-
-pub fn find_reorders(opts: &Options, original_ast: &AST, target_ast: &AST) -> Vec<(Var, Var, Var)> {
+pub fn find_reorders(opts: &Options, original_ast: &AST, target_ast: &AST) -> Vec<(Func, Var, Var)> {
     get_reorders_internal(opts, original_ast, target_ast)
 }
 
 
-pub fn get_compute_at(opts: &Options, ast: &AST) -> Vec<(Var, Var, Var)> {
+pub fn get_compute_at(opts: &Options, ast: &AST) -> Vec<(Func, Func, Var)> {
     get_compute_at_internal(opts, ast, &None, &None)
 }
 
@@ -50,7 +48,7 @@ pub fn get_compute_at(opts: &Options, ast: &AST) -> Vec<(Var, Var, Var)> {
 // We return Vec<(Var, Var, Var)> --- gives the
 // computed function (inner), the computed at function (outer)
 // and the index  (K)
-fn get_compute_at_internal(opts: &Options, ast: &AST, outer_producer: &Option<Var>, inner_producer: &Option<Var>) -> Vec<(Var, Var, Var)> {
+fn get_compute_at_internal(opts: &Options, ast: &AST, outer_producer: &Option<Func>, inner_producer: &Option<Func>) -> Vec<(Func, Func, Var)> {
     match ast {
         AST::Produce(var, ast) => {
             let new_inner_producer = Some(var.clone());
@@ -99,11 +97,11 @@ fn get_compute_at_internal(opts: &Options, ast: &AST, outer_producer: &Option<Va
 }
 
 // Gets a list of the the vectorize commands required.
-pub fn get_vectorized(opts: &Options, ast: &AST) -> Vec<(Var, Var)> {
+pub fn get_vectorized(opts: &Options, ast: &AST) -> Vec<(Func, Var)> {
     get_vectorized_internal(opts, ast, &None)
 }
 
-fn get_vectorized_internal(_opts: &Options, ast: &AST, current_producer: &Option<Var>) -> Vec<(Var, Var)> {
+fn get_vectorized_internal(_opts: &Options, ast: &AST, current_producer: &Option<Func>) -> Vec<(Func, Var)> {
     // recursively walk through the AST and
     // check if there is a vectorize node --- return the producer
     // that contains it, and the variable that is vectorized.

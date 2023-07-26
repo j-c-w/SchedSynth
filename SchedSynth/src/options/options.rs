@@ -10,6 +10,7 @@ pub struct Options {
 	// positional args -- these are files.
 	pub source: String,
 	pub target: String,
+    pub reshapes: String,
 
 	// debug flags
 	pub debug_parser: bool,
@@ -34,6 +35,12 @@ pub fn parse_options() -> Options {
                 .help("Target file")
                 .required(true)
                 .index(2),
+        )
+        .arg(
+            Arg::with_name("reshapes")
+            .help("Reshapes file")
+            .required(true)
+            .index(3)
         )
         .arg(
             Arg::new("debug-parser")
@@ -63,6 +70,7 @@ pub fn parse_options() -> Options {
 
         source: args.value_of("source").unwrap().into(),
         target: args.value_of("target").unwrap().into(),
+        reshapes: args.value_of("reshapes").unwrap().into(),
 
         debug_parser: args.is_present("debug-parser"),
 		debug_synthesizer: args.is_present("debug-synthesizer"),

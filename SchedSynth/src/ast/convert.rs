@@ -1,6 +1,7 @@
 use crate::ast::ast::AST;
 use crate::ast::ast::Range;
 use crate::ast::ast::Var;
+use crate::ast::ast::Func;
 use crate::sketch_parse::parser::SketchAST;
 use crate::sketch_parse::parser::RangeAST;
 
@@ -12,6 +13,13 @@ impl fmt::Display for Var {
 		write!(f, "{}", self.name)
 	}
 }
+
+impl fmt::Display for Func {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}", self.name)
+    }
+}
+
 
 impl fmt::Display for Range {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
@@ -43,8 +51,12 @@ impl fmt::Display for AST {
     }
 }
 
-fn variable_to_var(variable: crate::sketch_parse::parser::Variable) -> Var {
+pub fn variable_to_var(variable: crate::sketch_parse::parser::Variable) -> Var {
     Var { name: variable.name }
+}
+
+pub fn variable_to_func(variable: crate::sketch_parse::parser::Variable) -> Func {
+    Func { name: variable.name }
 }
 
 fn var_to_variable(var: Var) -> crate::sketch_parse::parser::Variable {
@@ -61,16 +73,16 @@ fn ast_from_range(input: RangeAST) -> Range {
 pub fn ast_from_sketch_ast(input: SketchAST) -> AST {
     match input {
         SketchAST::Produce(_nesting, var, ast) => {
-            AST::Produce(variable_to_var(var), Box::new(ast_from_sketch_ast(*ast)))
+            AST::Produce(variable_to_func(var), Box::new(ast_from_sketch_ast(*ast)))
         },
         SketchAST::Consume(_nesting, var, ast) => {
-            AST::Consume(variable_to_var(var), Box::new(ast_from_sketch_ast(*ast)))
+            AST::Consume(variable_to_func(var), Box::new(ast_from_sketch_ast(*ast)))
         },
         SketchAST::For(_nesting, var, ast, range) => {
             AST::For(variable_to_var(var), Box::new(ast_from_sketch_ast(*ast)), ast_from_range(range))
         },
         SketchAST::Assign(_nesting, var) => {
-            AST::Assign(variable_to_var(var))
+            AST::Assign(variable_to_func(var))
         },
         SketchAST::Vectorize(_nesting, var, children, range) => {
             AST::Vectorize(variable_to_var(var), Box::new(ast_from_sketch_ast(*children)), ast_from_range(range))

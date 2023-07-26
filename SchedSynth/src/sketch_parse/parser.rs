@@ -150,7 +150,7 @@ fn process_range(opts: &Options, sequence: Pair<Rule>) -> RangeAST {
                 // range
                 let mut range = inner.next().unwrap().into_inner();
 
-                println!("Range is {}", range);
+                // println!("Range is {}", range);
                 let _ = range.next(); // whitespace
                 //let _ = range.next(); // in
                 let _ = range.next(); // whitespace

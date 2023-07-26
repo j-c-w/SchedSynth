@@ -1,0 +1,23 @@
+alpha = { 'a'..'z' | 'A'..'Z' | "." | "_" }
+digit = { '0'..'9' }
+
+ident = { alpha+ }
+whitespace = { " " | "\t" }
+whitespace_plus = { whitespace+ }
+whitespace_star = { whitespace* }
+
+whitespace_or_newline = { whitespace | newline }
+whitespace_or_newlines = { whitespace_or_newline* }
+
+newline = { whitespace_star ~ "\n" }
+
+split = { ident ~ whitespace_star ~ "->" ~ whitespace_star ~ ident ~ whitespace_star ~ "," ~ whitespace_star ~ ident}
+fuse = { ident ~ whitespace_star ~ "," ~ whitespace_star ~ ident ~ whitespace_star ~ "->" ~ whitespace_star ~ ident}
+
+sequence = {
+	split | fuse
+}
+
+sequence_list = {
+	sequence ~ newline ~ sequence_list | sequence ~ whitespace_or_newlines ~ EOI
+}
