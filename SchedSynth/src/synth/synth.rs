@@ -41,7 +41,7 @@ fn to_halide_reorder(commands: Vec<(Func, Var, Var)>) -> Vec<HalideCommand> {
         let hfunc = HFunc { name: func.name };
         let hvar1 = HVar { name: compute_at_func.name };
         let hvar2 = HVar { name: hvar.name };
-        halide_commands.push(HalideCommand::Reorder(hfunc, hvar1, hvar2));
+        halide_commands.push(HalideCommand::Reorder(hfunc, (hvar1, hvar2)));
     }
     halide_commands
 }
@@ -68,6 +68,12 @@ fn to_halide_reshape(commands: &Vec<Reshape>) -> Vec<HalideCommand> {
                 let hvar2 = HVar { name: var2.name.clone() };
                 halide_commands.push(HalideCommand::Fuse(hfunc, (hvar1, hvar2), hvar));
             },
+            Reshape::Reorder(func, (var1, var2)) => {
+                let hfunc = HFunc { name: func.name.clone() };
+                let hvar1 = HVar { name: var1.name.clone() };
+                let hvar2 = HVar { name: var2.name.clone() };
+                halide_commands.push(HalideCommand::Reorder(hfunc, (hvar1, hvar2)));
+            },
         }
     }
     halide_commands
@@ -75,8 +81,7 @@ fn to_halide_reshape(commands: &Vec<Reshape>) -> Vec<HalideCommand> {
 
 fn synthesize_candidates(opts: &Options, source: &AST, target: &AST, reshapes: &Vec<Reshape>) -> Vec<HalideProgram> {
     // Go through the various halide exprs and get the calls for them.
-    let splits = to_halide_reshape(reshapes);
-    let reorder_calls = to_halide_reorder(crate::ast::ast::find_reorders(opts, source, target));
+    let splits = to_halide_reshape(&crate::ast::ast::insert_reorders(opts, reshapes, source, target));
     let compute_at_calls = to_halide_compute_at(crate::ast::ast::get_compute_at(opts, target));
     let vectorize_calls = to_halide_vectorize(crate::ast::ast::get_vectorized(opts, target));
     if opts.debug_synthesizer {
@@ -88,7 +93,6 @@ fn synthesize_candidates(opts: &Options, source: &AST, target: &AST, reshapes: &
                                       // find which splitting is the best strategy?
     unambiguous_calls.extend(compute_at_calls);
     unambiguous_calls.extend(vectorize_calls);
-	unambiguous_calls.extend(reorder_calls);
 
     return vec![
         HalideProgram { commands: unambiguous_calls }

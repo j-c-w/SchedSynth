@@ -18,6 +18,7 @@ pub struct Options {
     // Debug the reorder flag?
     pub debug_reorder: bool,
     pub debug_split: bool,
+    pub debug_reshape: bool,
 }
 
 pub fn parse_options() -> Options {
@@ -58,6 +59,11 @@ pub fn parse_options() -> Options {
 			.help("debug the reorder inference pass")
 		)
 		.arg(
+			Arg::new("debug-reshape")
+			.long("debug-reshape")
+			.help("debug the reshape inference pass")
+		)
+		.arg(
 			Arg::new("debug-split")
 			.long("debug-split")
 			.help("debug the split inference pass")
@@ -75,6 +81,7 @@ pub fn parse_options() -> Options {
         debug_parser: args.is_present("debug-parser"),
 		debug_synthesizer: args.is_present("debug-synthesizer"),
         debug_reorder: args.is_present("debug-reorder"),
+        debug_reshape: args.is_present("debug-reshape"),
         debug_split: args.is_present("debug-split"),
     };
 

@@ -4,6 +4,8 @@ use std::collections::HashSet;
 use crate::ast::ast::AST;
 use crate::ast::ast::Var;
 use crate::ast::ast::Func;
+use crate::reshape::reshape::Reshape;
+use crate::reshape::reshape::inject_reorders;
 
 // We want to walk through each AST, and record
 // the order that Vars are mentioned in (see get_orders below) --- this is
@@ -153,4 +155,9 @@ fn get_orders(opts: &Options, ast: &AST, current_producer: &Option<Func>,
             }
         }
     }
+}
+
+
+pub fn insert_reorders_internal(opts: &Options, reshapes: &Vec<Reshape>, original_ast: &AST, target_ast: &AST) -> Vec<Reshape> {
+    inject_reorders(opts, original_ast, reshapes)
 }

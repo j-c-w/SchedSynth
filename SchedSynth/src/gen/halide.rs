@@ -16,7 +16,7 @@ pub enum HalideCommand {
     Unroll(HFunc, i32), // HFunc to unroll, unroll factor.
     Tile(), // HFunc to tile, 
     ComputeAt(HFunc, HFunc, HVar), // Compute func at func at varaiable
-    Reorder(HFunc, HVar, HVar), // Reoder <to> hvar, hvar
+    Reorder(HFunc, (HVar, HVar)), // Reoder <to> hvar, hvar
     Split(HFunc, HVar, (HVar, HVar), i32), // split var into (var, var) with tiling factor i32
     Fuse(HFunc, (HVar, HVar), HVar), // fuse (var, var) into (var)
 }
@@ -49,7 +49,7 @@ impl ToString for HalideCommand {
                 format!("{}.compute_at({}, {})", func1.to_string(), func2.to_string(), var.to_string())
             }
             // add cases for 
-            HalideCommand::Reorder(func1, var1, var2) => {
+            HalideCommand::Reorder(func1, (var1, var2)) => {
                 format!("{}.reorder({}, {})", func1.to_string(), var1.to_string(), var2.to_string())
             }
             HalideCommand::Split(func, var1, (var2, var3), factor) => {

@@ -1,5 +1,7 @@
 use crate::options::options::Options;
 use crate::ast::reorder_infer::get_reorders_internal;
+use crate::ast::reorder_infer::insert_reorders_internal;
+use crate::reshape::reshape::Reshape;
 
 #[derive(Clone,Hash,Eq,PartialEq)]
 pub struct Var {
@@ -27,6 +29,58 @@ pub enum AST {
     Sequence(Vec<AST>)
 }
 
+pub trait ASTUtils {
+    fn is_loop_type(&self) -> bool;
+    fn get_iteration_variable(&self) -> Option<Var>;
+    fn get_substruct(&self) -> Option<AST>;
+    fn get_iteration_range(&self) -> Option<Range>;
+}
+
+impl ASTUtils for AST {
+ fn is_loop_type(&self) -> bool {
+        match self {
+            AST::For(_, _, _) => true,
+            AST::Vectorize(_, _, _) => true,
+            _ => false
+        }
+    }
+
+    fn get_iteration_variable(&self) -> Option<Var> {
+        match self {
+            AST::For(var, _, _) => Some(var.clone()),
+            AST::Vectorize(var, _, _) => Some(var.clone()),
+            _ => None
+        }
+    }
+
+    fn get_substruct(&self) -> Option<AST> {
+        match self {
+            AST::Produce(_, ast) => Some(*ast.clone()),
+            AST::Consume(_, ast) => Some(*ast.clone()),
+            AST::For(_, ast, _) => Some(*ast.clone()),
+            AST::Vectorize(_, ast, _) => Some(*ast.clone()),
+            AST::Sequence(asts) => {
+                if asts.len() == 1 {
+                    Some(asts[0].clone())
+                } else {
+                    None
+                }
+            },
+            _ => None
+        }
+    }
+    fn get_iteration_range(&self) -> Option<Range> {
+        match self {
+            AST::For(_, _, range) => Some(range.clone()),
+            AST::Vectorize(_, _, range) => Some(range.clone()),
+            _ => None
+        }
+    }
+}
+
+pub fn insert_reorders(opts: &Options, reshapes: &Vec<Reshape>, original_ast: &AST, target_ast: &AST) -> Vec<Reshape> {
+    insert_reorders_internal(opts, reshapes, original_ast, target_ast)
+}
 
 pub fn find_reorders(opts: &Options, original_ast: &AST, target_ast: &AST) -> Vec<(Func, Var, Var)> {
     get_reorders_internal(opts, original_ast, target_ast)
