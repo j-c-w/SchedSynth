@@ -5,6 +5,7 @@ use crate::ast::ast::AST;
 use crate::ast::ast::ASTUtils;
 
 use crate::options::options::Options;
+use std::collections::HashMap;
 
 use std::fmt;
 
@@ -211,10 +212,11 @@ fn infer_reorder_over(opts: &Options, ast: &AST, constraint: OrderingConstraint)
     if opts.debug_reshape {
         println!("Infering reorders for constraints {}", constraint);
     }
+    let func_lookup = crate::ast::analysis::func_table_for(opts, ast);
     let res = match constraint {
         // infer the list of reorder constraints required
         // to support this.
-        OrderingConstraint::Nested(outer, inner) => enforce_nested(opts, ast, outer, inner, false, false)
+        OrderingConstraint::Nested(outer, inner) => enforce_nested(opts, ast, outer, inner, &func_lookup, false, false)
     };
     if opts.debug_reshape {
         println!("Inferred reorders {:?}", res);
@@ -222,7 +224,7 @@ fn infer_reorder_over(opts: &Options, ast: &AST, constraint: OrderingConstraint)
     res
 }
 
-fn enforce_nested(opts: &Options, ast: &AST, outer: Var, inner: Var, found_outer: bool, found_inner: bool) -> Vec<Reshape> {
+fn enforce_nested(opts: &Options, ast: &AST, outer: Var, inner: Var, func_lookup: &HashMap<Var, Func>, found_outer: bool, found_inner: bool) -> Vec<Reshape> {
     // Recursively walk through the AST --- find either the outer, or the inner.
     // Then reorder all the other dimensions to make sure that the outer is outermost,
     // and the inner is innermost.
@@ -231,10 +233,10 @@ fn enforce_nested(opts: &Options, ast: &AST, outer: Var, inner: Var, found_outer
     };
     let res = match ast {
         AST::Produce(func, subast) => {
-            enforce_nested(opts, &*subast, outer, inner, found_outer, found_inner)
+            enforce_nested(opts, &*subast, outer, inner, func_lookup, found_outer, found_inner)
         },
         AST::Consume(func, subast) => {
-            enforce_nested(opts, &*subast, outer, inner, found_outer, found_inner)
+            enforce_nested(opts, &*subast, outer, inner, func_lookup, found_outer, found_inner)
         },
         AST::For(var, subast, range) | AST::Vectorize(var, subast, range) => {
             let this_is_inner = *var == inner;
@@ -252,30 +254,31 @@ fn enforce_nested(opts: &Options, ast: &AST, outer: Var, inner: Var, found_outer
                 } else {
                     // This is not the inner --- insert a reordering that swaps the outer
                     // and this loop --- and recurse
-                    let new_reshape = Reshape::Reorder(Func {name: "temp".into()} , (var.clone(),
+                    // TODO -- check that both vars have the same parent.
+                    let new_reshape = Reshape::Reorder(func_lookup.get(var).unwrap().clone(), (var.clone(),
                     outer.clone()));
-                    let mut reorders = enforce_nested(opts, &*subast, outer, inner, found_outer, found_inner);
+                    let mut reorders = enforce_nested(opts, &*subast, outer, inner, func_lookup, found_outer, found_inner);
                     reorders.push(new_reshape);
                     reorders
                 }
             } else if found_inner {
                 if this_is_outer {
                     // we are done -- but still need to swap inner and outer.
-                    vec![Reshape::Reorder(Func { name: "temp".into()}, (outer.clone(),
+                    vec![Reshape::Reorder(func_lookup.get(var).unwrap().clone(), (outer.clone(),
                     inner.clone()))]
                 } else {
                     // we are still looking for the outer --- recurse
                     // and insert a swap for this loop and the inner.
-                    let new_reshape = Reshape::Reorder(Func {name: "temp".into()}, (var.clone(),
+                    let new_reshape = Reshape::Reorder(func_lookup.get(var).unwrap().clone(), (var.clone(),
                     inner.clone()));
-                    let mut reorders = enforce_nested(opts, &*subast, outer, inner, found_outer, found_inner);
+                    let mut reorders = enforce_nested(opts, &*subast, outer, inner, func_lookup, found_outer, found_inner);
                     reorders.push(new_reshape);
                     reorders
                 }
             } else {
                 // have thus far found neither --- recurse (note that this_is_inner and
                 // this_is_outer can be passed as args here)
-                enforce_nested(opts, &*subast, outer, inner, this_is_outer, this_is_inner)
+                enforce_nested(opts, &*subast, outer, inner, func_lookup, this_is_outer, this_is_inner)
             }
             // If we have seen just one, need to insert a reorder.  We aim towards
             // moving the outer loop in rather than the inner loop out.
@@ -285,7 +288,7 @@ fn enforce_nested(opts: &Options, ast: &AST, outer: Var, inner: Var, found_outer
         AST::Sequence(seq) => {
             let mut reorders = vec![];
             for subast in seq {
-                let mut new_reorders = enforce_nested(opts, &subast, outer.clone(), inner.clone(), found_outer, found_inner);
+                let mut new_reorders = enforce_nested(opts, &subast, outer.clone(), inner.clone(), func_lookup, found_outer, found_inner);
                 reorders.append(&mut new_reorders);
             }
             reorders

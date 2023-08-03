@@ -1,2 +1,5 @@
 x->a,b  
-a,y->z
+y->c,d
+a->e,f
+e,f->g
+g,d->z

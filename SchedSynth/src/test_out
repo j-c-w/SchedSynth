@@ -1,4 +1,9 @@
-produce cons:
-  for z:
-    vectorized a:
-      cons(...) = ...
+produce prod:
+  for x:
+    for a:
+      produce cons:
+        for x:
+          for y:
+            cons(...) = ...
+      for y:
+        prod(...) = ...

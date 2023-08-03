@@ -1,3 +1,8 @@
+produce prod:
+  for a:
+    for x:
+      for y:
+        prod(...) = ...
 produce cons:
   for x:
     for y:
