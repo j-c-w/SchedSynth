@@ -87,6 +87,10 @@ fn process(opts: &Options, rule: Pair<Rule>) -> Vec<SplitsAST> {
     match rule.as_rule() {
         Rule::sequence_list => {
             let mut inner = rule.into_inner();
+            if inner.len() == 2 {
+                // hit the rule for an empty file.
+                return vec![];
+            }
 
             let mut seq = process(opts, inner.next().unwrap());
             let _ = inner.next(); // whitespace

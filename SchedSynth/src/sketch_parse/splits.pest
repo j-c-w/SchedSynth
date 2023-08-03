@@ -19,5 +19,7 @@ sequence = {
 }
 
 sequence_list = {
-	sequence ~ newline ~ sequence_list | sequence ~ whitespace_or_newlines ~ EOI
+	whitespace_or_newlines ~ EOI |
+	sequence ~ newline ~ sequence_list |
+	sequence ~ whitespace_or_newlines ~ EOI
 }
