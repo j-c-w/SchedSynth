@@ -87,8 +87,8 @@ pub fn find_reorders(opts: &Options, original_ast: &AST, target_ast: &AST) -> Ve
 }
 
 
-pub fn get_compute_at(opts: &Options, ast: &AST) -> Vec<(Func, Func, Var)> {
-    get_compute_at_internal(opts, ast, &None, &None)
+pub fn get_compute_at(opts: &Options, ast: &AST) -> Vec<(Func, Option<Func>, Option<Var>)> {
+    get_compute_at_internal(opts, ast, &None, &None, &None)
 }
 
 // We are looking for this pattern:
@@ -102,39 +102,32 @@ pub fn get_compute_at(opts: &Options, ast: &AST) -> Vec<(Func, Func, Var)> {
 // We return Vec<(Var, Var, Var)> --- gives the
 // computed function (inner), the computed at function (outer)
 // and the index  (K)
-fn get_compute_at_internal(opts: &Options, ast: &AST, outer_producer: &Option<Func>, inner_producer: &Option<Func>) -> Vec<(Func, Func, Var)> {
-    match ast {
+fn get_compute_at_internal(opts: &Options, ast: &AST, outer_producer: &Option<Func>, inner_producer: &Option<Func>, last_variable: &Option<Var>) -> Vec<(Func, Option<Func>, Option<Var>)> {
+    // keep track of what should be passed in sub-calls.
+    // if the 
+    let (new_outer, new_inner): (&Option<Func>, &Option<Func>) = match (outer_producer, inner_producer) {
+        (Some(_outer), Some(inner)) => (&None, inner_producer),
+        _ => (outer_producer, inner_producer)
+    };
+
+    let mut rest = match ast {
         AST::Produce(var, ast) => {
             let new_inner_producer = Some(var.clone());
             // push the producers through
-            get_compute_at_internal(opts, ast, inner_producer, &new_inner_producer)
+            let mut res = get_compute_at_internal(opts, ast, new_inner, &new_inner_producer, last_variable);
+            match (outer_producer, inner_producer) {
+                (None, None) => res.push((var.clone(), None, None)), // if neither was set, we want a compute_root
+                _ => (),
+            };
+            res
         },
         AST::Consume(_var, ast) => {
             // although consume comes from compute-at, I don't think it has
             // anything to do with this.
-            get_compute_at_internal(opts, ast, outer_producer, inner_producer)
+            get_compute_at_internal(opts, ast, new_outer, new_inner, last_variable)
         },
         AST::For(var, subast, _range) | AST::Vectorize(var, subast, _range) => {
-            // These are compute loops --- if both producers are set,
-            // then we recurse here.
-            match (outer_producer, inner_producer) {
-                (Some(outer), Some(inner)) => {
-                    let res = (outer.clone(), inner.clone(), var.clone());
-                    // Recurse and get anything in the inside --- note that
-                    // we unset outer --- wehn we encounter a new produce, the
-                    // current inner will get pushed into outer.
-                    // We have to unset because produce (produce (for (for )))
-                    // should only return one compute at, not two.
-                    let mut rest = get_compute_at_internal(opts, subast, &None, inner_producer);
-                    rest.push(res);
-                    rest
-                },
-                (_, _) => {
-                    // do noth ahve a full match (i.e. this is not a compute-at
-                    // structure.
-                    get_compute_at_internal(opts, subast, outer_producer, inner_producer)
-                }
-            }
+            get_compute_at_internal(opts, subast, new_outer, new_inner, &Some(var.clone()))
         },
         AST::Assign(_var) => {
             // TODo -- is there anything that we should do in this case?
@@ -143,10 +136,28 @@ fn get_compute_at_internal(opts: &Options, ast: &AST, outer_producer: &Option<Fu
         AST::Sequence(asts) => {
             let mut res = vec![];
             for ast in asts {
-                res.append(&mut get_compute_at_internal(opts, ast, outer_producer, inner_producer));
+                res.append(&mut get_compute_at_internal(opts, ast, new_outer, new_inner, last_variable));
             }
             res
         }
+    };
+
+    // If the outer and the inner are set, we have a compute-at that
+    // is just above this node --- add it to the list.
+    // Note that these refer to the outer_producer and inner_producer 
+    // /passed/ to this --- i.e. we are really only looking at the parents.
+    match (outer_producer, inner_producer) {
+        (Some(outer), Some(inner)) => {
+            let res = (inner.clone(), Some(outer.clone()), last_variable.clone());
+            // Recurse and get anything in the inside --- note that
+            // we unset outer --- wehn we encounter a new produce, the
+            // current inner will get pushed into outer.
+            // We have to unset because produce (produce (for (for )))
+            // should only return one compute at, not two.
+            rest.push(res);
+            rest
+        },
+        _ => rest
     }
 }
 

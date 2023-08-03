@@ -22,13 +22,24 @@ fn to_halide_vectorize(commands: Vec<(Func, Var)>) -> Vec<HalideCommand> {
 
 // turn the var var var into this:
 // ComputeAt(HFunc, HFunc, HVar) // Compute func at func at varaiable
-fn to_halide_compute_at(commands: Vec<(Func, Func, Var)>) -> Vec<HalideCommand> {
+fn to_halide_compute_at(commands: Vec<(Func, Option<Func>, Option<Var>)>) -> Vec<HalideCommand> {
     let mut halide_commands = Vec::new();
     for (func, compute_at_func, hvar) in commands {
         let hfunc = HFunc { name: func.name };
-        let hcompute_at_func = HFunc { name: compute_at_func.name };
-        let hhvar = HVar { name: hvar.name };
-        halide_commands.push(HalideCommand::ComputeAt(hfunc, hcompute_at_func, hhvar));
+        match (compute_at_func, hvar) {
+            (Some(compute_at_func), Some(hvar)) => {
+                let hhvar = HVar { name: hvar.name };
+                let hcompute_at_func = HFunc { name: compute_at_func.name };
+                halide_commands.push(HalideCommand::ComputeAt(hfunc, hcompute_at_func, hhvar));
+            },
+            (None, None) => {
+                // I /think/ that this is only possible this wa.
+                // Not 100% sure what it means with the var set.
+                halide_commands.push(HalideCommand::ComputeRoot(hfunc));
+            },
+            (None, Some(v)) => panic!("Unexpected variable {} set when processing compute_root", v),
+            (Some(v), None) => panic!("Unexpected func {} set when processing compute_root", v)
+        }
     }
     halide_commands
 }

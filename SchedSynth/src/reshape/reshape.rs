@@ -185,7 +185,8 @@ fn apply_reshape(ast: &AST, reshape: &Reshape) -> (AST, bool) {
 fn apply_reshapes(ast: &AST, reshapes: &Vec<Reshape>) -> AST {
     let mut new_ast = ast.clone();
     for reshape in reshapes {
-        let (new_ast, applied) = apply_reshape(&new_ast, reshape);
+        let (new_ast_internal, applied) = apply_reshape(&new_ast, reshape);
+        new_ast = new_ast_internal;
 
         if !applied {
             println!("Warning: did not apply rule {}", reshape);
@@ -196,13 +197,13 @@ fn apply_reshapes(ast: &AST, reshapes: &Vec<Reshape>) -> AST {
 
 fn infer_constraints_from(reshape: &Reshape) -> Vec<OrderingConstraint> {
  match reshape {
-        Reshape::Split(func, var, (outer, inner), factor) => {
+        Reshape::Split(_func, _var, (_outer, _inner), _factor) => {
             vec![]
         },
-        Reshape::Reorder(func, (outer, inner)) => {
+        Reshape::Reorder(_func, (outer, inner)) => {
             vec![OrderingConstraint::Nested(inner.clone(), outer.clone())]
         },
-        Reshape::Fuse(func, (outer, inner), fused) => {
+        Reshape::Fuse(_func, (outer, inner), _fused) => {
             vec![OrderingConstraint::Nested(outer.clone(), inner.clone())]
         }
     }
@@ -232,13 +233,13 @@ fn enforce_nested(opts: &Options, ast: &AST, outer: Var, inner: Var, func_lookup
         println!("Enforcing nesting {} > {} on ast {}", outer, inner, ast);
     };
     let res = match ast {
-        AST::Produce(func, subast) => {
+        AST::Produce(_func, subast) => {
             enforce_nested(opts, &*subast, outer, inner, func_lookup, found_outer, found_inner)
         },
-        AST::Consume(func, subast) => {
+        AST::Consume(_func, subast) => {
             enforce_nested(opts, &*subast, outer, inner, func_lookup, found_outer, found_inner)
         },
-        AST::For(var, subast, range) | AST::Vectorize(var, subast, range) => {
+        AST::For(var, subast, _range) | AST::Vectorize(var, subast, _range) => {
             let this_is_inner = *var == inner;
             let this_is_outer = *var == outer;
             if opts.debug_reshape {
@@ -284,7 +285,7 @@ fn enforce_nested(opts: &Options, ast: &AST, outer: Var, inner: Var, func_lookup
             // moving the outer loop in rather than the inner loop out.
 
         },
-        AST::Assign(func) => vec![],
+        AST::Assign(_func) => vec![],
         AST::Sequence(seq) => {
             let mut reorders = vec![];
             for subast in seq {
@@ -305,7 +306,7 @@ fn infer_reorders_over(opts: &Options, ast: &AST, order_constraints: &Vec<Orderi
     match order_constraints.len() {
         // If there are no order constraints, then no reorders are required
         0 => (ast.clone(), vec![]),
-        n => {
+        _n => {
             let (head, tail) = order_constraints.split_at(1);
 
             let mut reshapes = infer_reorder_over(opts, ast, head[0].clone());
@@ -337,7 +338,7 @@ pub fn inject_reorders(opts: &Options, ast: &AST, reshapes: &Vec<Reshape>) -> Ve
                                                // into a list.
         result_reshapes.push(reshape.clone());
         // apply all the reorders
-        let (new_ast_intermediate, applied) = apply_reshape(&new_ast_intermediate, reshape);
+        let (new_ast_intermediate, _applied) = apply_reshape(&new_ast_intermediate, reshape);
         new_ast = new_ast_intermediate;
 
         if opts.debug_reshape {
