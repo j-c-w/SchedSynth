@@ -74,6 +74,7 @@ fn range_table_for_internal(opts: &Options, ast: &AST, table: &mut HashMap<Var, 
             range_table_for_internal(opts, ast, table)
         },
         AST::Assign(_var) => (),
+        AST::StoreAt(_var) => (),
         AST::Vectorize(var, ast, range) => {
             table.insert(var.clone(), range.clone());
             range_table_for_internal(opts, ast, table)
@@ -100,7 +101,7 @@ pub fn range_table_for(opts: &Options, ast: &AST) -> HashMap<Var, Range> {
 
 // if current_producer is none then we throw (?what should we do?)
 fn func_table_internal(opts: &Options, ast: &AST, current_producer: &Option<Func>, table: &mut HashMap<Var, Func>) {
- match ast {
+    match ast {
         AST::Produce(var, body) => {
             func_table_internal(opts, body, &Some(var.clone()), table);
         },
@@ -126,6 +127,7 @@ fn func_table_internal(opts: &Options, ast: &AST, current_producer: &Option<Func
         AST::Assign(_var) => {
             // Should we assert that var is the same as producer?
         },
+        AST::StoreAt(_func) => { },
         AST::Vectorize(var, body, _) => {
             // if the variable already exists in the table, then we
             // don't need to do anything

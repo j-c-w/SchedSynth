@@ -19,6 +19,7 @@ consume = { "consume" ~ whitespace_plus ~ ident ~ colon }
 pfor = {"for" ~ whitespace_plus ~ ident ~ optional_range ~ colon }
 vectorize = { "vectorized" ~ whitespace_plus ~ ident ~ optional_range ~ colon }
 assignment = {ident ~ "(...) = ..."}
+store_at = { "store" ~ whitespace_plus ~ ident }
 
 whitespace = { " " | "\t" }
 whitespace_plus = { whitespace+ }
@@ -35,5 +36,6 @@ sequence =
   { indent_nest ~ produce
   | indent_nest ~ consume
   | indent_nest ~ pfor
+  | indent_nest ~ store_at
   | indent_nest ~ assignment
   | indent_nest ~ vectorize }

@@ -20,6 +20,16 @@ fn to_halide_vectorize(commands: Vec<(Func, Var)>) -> Vec<HalideCommand> {
     halide_commands
 }
 
+fn to_halide_store_at(commands: Vec<(Func, Var)>) -> Vec<HalideCommand> {
+    let mut halide_commands = Vec::new();
+    for (func, hvar) in commands {
+        let hfunc = HFunc { name: func.name };
+        let hhvar = HVar { name: hvar.name };
+        halide_commands.push(HalideCommand::StoreAt(hfunc, hhvar));
+    }
+    halide_commands
+}
+
 // turn the var var var into this:
 // ComputeAt(HFunc, HFunc, HVar) // Compute func at func at varaiable
 fn to_halide_compute_at(commands: Vec<(Func, Option<Func>, Option<Var>)>) -> Vec<HalideCommand> {
@@ -94,6 +104,7 @@ fn synthesize_candidates(opts: &Options, source: &AST, target: &AST, reshapes: &
     // Go through the various halide exprs and get the calls for them.
     let splits = to_halide_reshape(&crate::ast::ast::insert_reorders(opts, reshapes, source, target));
     let compute_at_calls = to_halide_compute_at(crate::ast::ast::get_compute_at(opts, target));
+    let store_at_calls = to_halide_store_at(crate::ast::ast::get_store_at(opts, target));
     let vectorize_calls = to_halide_vectorize(crate::ast::ast::get_vectorized(opts, target));
     if opts.debug_synthesizer {
         println!("Got {} vectorize calls", vectorize_calls.len());
@@ -103,6 +114,7 @@ fn synthesize_candidates(opts: &Options, source: &AST, target: &AST, reshapes: &
     unambiguous_calls.extend(splits); // TODO -- splits are ambiguious --- use synthesis to
                                       // find which splitting is the best strategy?
     unambiguous_calls.extend(compute_at_calls);
+    unambiguous_calls.extend(store_at_calls);
     unambiguous_calls.extend(vectorize_calls);
 
     return vec![
@@ -110,8 +122,7 @@ fn synthesize_candidates(opts: &Options, source: &AST, target: &AST, reshapes: &
     ]
 }
 
-pub fn synthesize_from_sketch(opts: &Options, source: &AST, target: &AST, reshapes: &Vec<Reshape>) ->
-HalideProgram {
+pub fn synthesize_from_sketch(opts: &Options, source: &AST, target: &AST, reshapes: &Vec<Reshape>) -> HalideProgram {
     let candidates = synthesize_candidates(opts, source, target, reshapes);
     // todo -- pick best
     return candidates[0].clone()

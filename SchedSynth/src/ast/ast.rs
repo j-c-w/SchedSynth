@@ -26,6 +26,7 @@ pub enum AST {
     For(Var, Box<AST>, Range),
     Assign(Func),
     Vectorize(Var, Box<AST>, Range),
+    StoreAt(Func),
     Sequence(Vec<AST>)
 }
 
@@ -86,6 +87,46 @@ pub fn find_reorders(opts: &Options, original_ast: &AST, target_ast: &AST) -> Ve
     get_reorders_internal(opts, original_ast, target_ast)
 }
 
+pub fn get_store_at(opts: &Options, ast: &AST) -> Vec<(Func, Var)> {
+    get_store_at_internal(opts, &None, ast)
+}
+
+pub fn get_store_at_internal(opts: &Options, parent_variable: &Option<&Var>, ast: &AST) -> Vec<(Func, Var)> {
+    match ast {
+        AST::Produce(func, ast) => {
+            get_store_at_internal(opts, parent_variable, ast)
+        },
+        AST::Consume(func, ast) => {
+            get_store_at_internal(opts, parent_variable, ast)
+        },
+        AST::For(var, ast, range) => {
+            get_store_at_internal(opts, &Some(&var), ast)
+        },
+        AST::Assign(func) => {
+            vec![]
+        },
+        AST::Vectorize(var, ast, range) => {
+            get_store_at_internal(opts, &Some(&var), ast)
+        },
+        AST::StoreAt(func) => {
+            match parent_variable {
+                Some(parent_variable) => {
+                    vec![(func.clone(), (*parent_variable).clone())]
+                },
+                None => {
+                    panic!("unexpected store_at root --- need a return")
+                }
+            }
+        },
+        AST::Sequence(asts) => {
+            let mut store_ats = vec![];
+            for ast in asts {
+                store_ats.append(&mut get_store_at_internal(opts, parent_variable, ast));
+            }
+            store_ats
+        }
+    }
+}
 
 pub fn get_compute_at(opts: &Options, ast: &AST) -> Vec<(Func, Option<Func>, Option<Var>)> {
     get_compute_at_internal(opts, ast, &None, &None, &None)
@@ -131,6 +172,9 @@ fn get_compute_at_internal(opts: &Options, ast: &AST, outer_producer: &Option<Fu
         },
         AST::Assign(_var) => {
             // TODo -- is there anything that we should do in this case?
+            vec![]
+        },
+        AST::StoreAt(_var) => {
             vec![]
         },
         AST::Sequence(asts) => {
@@ -192,6 +236,7 @@ fn get_vectorized_internal(_opts: &Options, ast: &AST, current_producer: &Option
         },
         AST::For(_, ast, _range) => get_vectorized_internal(_opts, ast, current_producer),
         AST::Assign(_) => Vec::new(),
+        AST::StoreAt(_) => Vec::new(),
         AST::Sequence(seq) => {
             // recurse on each element of seq, and join the results into a single vec
             let mut v = Vec::new();

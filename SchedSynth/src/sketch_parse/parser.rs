@@ -26,6 +26,7 @@ pub enum SketchAST { // nodes have nesting, <other stuff>
     Consume(i32, Variable, Box<SketchAST>), // name, contents
     For(i32, Variable, Box<SketchAST>, RangeAST), // variable name, sub-contents, optional range
     Assign(i32, Variable), // variable name
+    StoreAt(i32, Variable), // variable name
     Vectorize(i32, Variable, Box<SketchAST>, RangeAST), // variable name, sub-contents, optional range
     Sequence(i32, Vec<SketchAST>), // list of sub-asts
 }
@@ -65,11 +66,11 @@ impl ToString for SketchAST {
             SketchAST::Assign(_, n) => format!("{} = ...", n.to_string().clone()),
             SketchAST::Vectorize(_, n, child, range) => format!("vectorized {} in {}: ({})",
             n.to_string().clone(), range.to_string(), child.to_string()),
+            SketchAST::StoreAt(_, n) => format!("store {} here", n.to_string().clone()),
             SketchAST::Sequence(_, subvars) => format!("Sequence({})", subvars.iter().map(|x|
                     x.to_string()).collect::<Vec<String>>().join(",")),
         }
     }
-
 }
 
 impl AST for SketchAST {
@@ -99,6 +100,9 @@ impl AST for SketchAST {
                 res.push(children.as_ref().clone());
                 res
             }
+            SketchAST::StoreAt(_, n) => {
+                vec![]
+            }
             SketchAST::Sequence(_nest, children) => children.to_vec(),
         }
     }
@@ -110,6 +114,7 @@ impl AST for SketchAST {
             SketchAST::For(_, _, _, _) => "For".into(),
             SketchAST::Assign(_, _) => "Assign".into(),
             SketchAST::Vectorize(_, _, _, _) => "Vectorize".into(),
+            SketchAST::StoreAt(_, _) => "StoreAt".into(),
             SketchAST::Sequence(_, _) => "Sequence".into(),
         }
     }
@@ -122,6 +127,7 @@ impl AST for SketchAST {
             SketchAST::Assign(_, _) => 1,
             SketchAST::Sequence(_, children) => children.iter().map(|child| child.size()).sum(),
             SketchAST::Vectorize(_, _, child, _) => child.size() + 1,
+            SketchAST::StoreAt(_, _) => 1,
         }
     }
 }
@@ -135,7 +141,7 @@ fn process_ident(opts: &Options, sequence: Pair<Rule>) -> Variable {
             let name = sequence.as_str();
             Variable{name: name.into()}
         },
-        _ => panic!("Unable to process non-ident sequence into variable")
+        _ => panic!("Unable to process non-ident sequence '{}' into variable", sequence.as_str())
     }
 }
 
@@ -286,6 +292,15 @@ fn process(opts: &Options, nesting_depth: i32, sequence: Pair<Rule>) -> SketchAS
 
             SketchAST::Assign(nesting_depth, ident)
         }
+        Rule::store_at => {
+            if opts.debug_parser {
+                println!("Got a store_at");
+            }
+            let mut inner = sequence.into_inner();
+            let _ = inner.next(); // whitespace
+            let ident = process_ident(opts, inner.next().unwrap());
+            SketchAST::StoreAt(nesting_depth, ident)
+        }
         Rule::vectorize => {
             if opts.debug_parser {
                 println!("Got a vectorize");
@@ -328,30 +343,36 @@ fn get_nest_depth(v: &SketchAST) -> &i32 {
         SketchAST::Assign(n, _) => n,
         SketchAST::Sequence(n, _) => n,
         SketchAST::Vectorize(n, _, _, _) => n,
+        SketchAST::StoreAt(n, _) => n,
     }
 }
 
 // set the loop nest contents
 fn set_nest(v: &SketchAST, nest: SketchAST) -> SketchAST {
-    match v {
-        SketchAST::Produce(n, var, current_nest) => {
-            assert!(current_nest.size() == 0); // check we aren't deleting anything
-            SketchAST::Produce(n.clone(), var.clone(), Box::new(nest))
-        },
-        SketchAST::Consume(n, var, current_nest) => {
-            assert!(current_nest.size() == 0); // check we aren't deleting anything
-            SketchAST::Consume(n.clone(), var.clone(), Box::new(nest))
-        },
-        SketchAST::For(n, var, current_nest, range) => {
-            assert!(current_nest.size() == 0); // check we aren't deleting anything
-            SketchAST::For(n.clone(), var.clone(), Box::new(nest), range.clone())
+    if nest.size() == 0 {
+        v.clone()
+    } else {
+        match v {
+            SketchAST::Produce(n, var, current_nest) => {
+                assert!(current_nest.size() == 0); // check we aren't deleting anything
+                SketchAST::Produce(n.clone(), var.clone(), Box::new(nest))
+            },
+            SketchAST::Consume(n, var, current_nest) => {
+                assert!(current_nest.size() == 0); // check we aren't deleting anything
+                SketchAST::Consume(n.clone(), var.clone(), Box::new(nest))
+            },
+            SketchAST::For(n, var, current_nest, range) => {
+                assert!(current_nest.size() == 0); // check we aren't deleting anything
+                SketchAST::For(n.clone(), var.clone(), Box::new(nest), range.clone())
+            }
+            SketchAST::Vectorize(n, var, current_nest, range) => {
+                assert!(current_nest.size() == 0); // check we aren't deleting anything
+                SketchAST::Vectorize(n.clone(), var.clone(), Box::new(nest), range.clone())
+            },
+            SketchAST::StoreAt(_n, _var) => panic!("Can't set nest to a store"),
+            SketchAST::Assign(_n, _var) => panic!("Can't set nest to an assign"),
+            SketchAST::Sequence(_n, _nest) => panic!("Can't set nest to a sequence"),
         }
-        SketchAST::Vectorize(n, var, current_nest, range) => {
-            assert!(current_nest.size() == 0); // check we aren't deleting anything
-            SketchAST::Vectorize(n.clone(), var.clone(), Box::new(nest), range.clone())
-        }
-        SketchAST::Assign(_n, _var) => panic!("Can't set nest to an assign"),
-        SketchAST::Sequence(_n, _nest) => panic!("Can't set nest to a sequence"),
     }
 }
 

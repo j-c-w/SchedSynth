@@ -163,6 +163,9 @@ fn apply_reshape(ast: &AST, reshape: &Reshape) -> (AST, bool) {
                 AST::Assign(func) => {
                     (AST::Assign(func.clone()), false)
                 }
+                AST::StoreAt(func) => {
+                    (AST::StoreAt(func.clone()), false)
+                }
                 AST::Vectorize(var, ast, range) => {
                     let (new_ast, applied) = apply_reshape(&*ast, reshape);
                     (AST::Vectorize(var.clone(), Box::new(new_ast), range.clone()), applied)
@@ -286,6 +289,7 @@ fn enforce_nested(opts: &Options, ast: &AST, outer: Var, inner: Var, func_lookup
 
         },
         AST::Assign(_func) => vec![],
+        AST::StoreAt(_func) => vec![],
         AST::Sequence(seq) => {
             let mut reorders = vec![];
             for subast in seq {

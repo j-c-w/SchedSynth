@@ -16,6 +16,7 @@ pub enum HalideCommand {
     Unroll(HFunc, i32), // HFunc to unroll, unroll factor.
     Tile(), // HFunc to tile, 
     ComputeAt(HFunc, HFunc, HVar), // Compute func at func at varaiable
+    StoreAt(HFunc, HVar), // store func at variable
     ComputeRoot(HFunc), // Compute func at func at varaiable
     Reorder(HFunc, (HVar, HVar)), // Reoder <to> hvar, hvar
     Split(HFunc, HVar, (HVar, HVar), i32), // split var into (var, var) with tiling factor i32
@@ -42,30 +43,33 @@ impl ToString for HVar {
 impl ToString for HalideCommand {
     fn to_string(&self) -> String {
         match self {
-            HalideCommand::Vectorize(func, var) => format!("{}.vectorize({})", func.to_string(),
+            HalideCommand::Vectorize(func, var) => format!("{}.vectorize({});", func.to_string(),
             var.to_string()),
-            HalideCommand::Unroll(func, factor) => format!("{}.Unroll({})", func.to_string(), factor),
+            HalideCommand::Unroll(func, factor) => format!("{}.Unroll({});", func.to_string(), factor),
             HalideCommand::Tile() => String::from("X.tile()"),
             HalideCommand::ComputeAt(func1, func2, var) => {
-                format!("{}.compute_at({}, {})", func1.to_string(), func2.to_string(), var.to_string())
+                format!("{}.compute_at({}, {});", func1.to_string(), func2.to_string(), var.to_string())
             }
+            HalideCommand::StoreAt(func, var) => {
+                format!("{}.store_at({})", func.to_string(), var.to_string())
+            },
             HalideCommand::ComputeRoot(func) => {
-                format!("{}.compute_root()", func.to_string())
+                format!("{}.compute_root();", func.to_string())
             }
             // add cases for 
             HalideCommand::Reorder(func1, (var1, var2)) => {
-                format!("{}.reorder({}, {})", func1.to_string(), var1.to_string(), var2.to_string())
+                format!("{}.reorder({}, {});", func1.to_string(), var1.to_string(), var2.to_string())
             }
             HalideCommand::Split(func, var1, (var2, var3), factor) => {
-                format!("{}.split({}, {}, {}, {})", func.to_string(), var1.to_string(), var2.to_string(), var3.to_string(), factor.to_string())
+                format!("{}.split({}, {}, {}, {});", func.to_string(), var1.to_string(), var2.to_string(), var3.to_string(), factor.to_string())
             }
             HalideCommand::Fuse(func, (var1, var2), var3) => {
-                format!("{}.fuse({}, {}, {})", func.to_string(), var1.to_string(), var2.to_string(), var3.to_string())
+                format!("{}.fuse({}, {}, {});", func.to_string(), var1.to_string(), var2.to_string(), var3.to_string())
             }
         }
     }
 }
 
 pub fn generate(_opts: &Options, program: HalideProgram) -> String {
-    program.commands.iter().map(|command| command.to_string()).collect::<Vec<String>>().join("\n")
+    program.commands.iter().map(|command| command.to_string()).collect::<Vec<String>>().join("\n") + "\n"
 }

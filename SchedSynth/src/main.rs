@@ -23,5 +23,7 @@ fn main() {
     let synthed_option = synth::synth::synthesize_from_sketch(&options, &ast_original, &ast_target, &reshapes);
     let output = gen::halide::generate(&options, synthed_option);
 
+    std::fs::write(options.dest, output.clone()).expect("File write failed");
+
     println!("Output: {}", output);
 }

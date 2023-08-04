@@ -146,7 +146,7 @@ fn get_orders(opts: &Options, ast: &AST, current_producer: &Option<Func>,
             // recurse
             get_orders(opts, ast, current_producer, orders);
         },
-        AST::Assign(_var) => {
+        AST::Assign(_var) | AST::StoreAt(_var) => {
             // I think we don't need to do anything here.
         },
         AST::Sequence(asts) => {

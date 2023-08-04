@@ -1,0 +1,3 @@
+cons.compute_at(prod, a);
+prod.compute_root();
+cons.store_at(x)

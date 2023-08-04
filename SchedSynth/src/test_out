@@ -1,5 +1,6 @@
 produce prod:
   for x:
+    store cons
     for a:
       produce cons:
         for x:

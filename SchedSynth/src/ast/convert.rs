@@ -38,6 +38,7 @@ impl fmt::Display for AST {
             AST::Consume(ref var, ref ast) => write!(f, "consume {} in ({})", var, ast),
             AST::For(ref var, ref ast, ref range) => write!(f, "for {} in {}: ({})", var, range, ast),
             AST::Assign(ref var) => write!(f, "assign {}", var),
+            AST::StoreAt(ref var) => write!(f, "store {} here", var),
             AST::Vectorize(ref var, ref ast, ref range) => write!(f, "vectorize {} in {}: ({})", var, range, ast),
             AST::Sequence(ref ast) => {
                 let mut s = String::new();
@@ -86,6 +87,9 @@ pub fn ast_from_sketch_ast(input: SketchAST) -> AST {
         },
         SketchAST::Vectorize(_nesting, var, children, range) => {
             AST::Vectorize(variable_to_var(var), Box::new(ast_from_sketch_ast(*children)), ast_from_range(range))
+        },
+        SketchAST::StoreAt(_nesting, var) => {
+            AST::StoreAt(variable_to_func(var))
         },
         SketchAST::Sequence(_nesting, asts) => {
             let mut ast_vec = Vec::new();
