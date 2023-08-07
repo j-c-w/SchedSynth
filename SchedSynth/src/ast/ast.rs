@@ -10,7 +10,8 @@ pub struct Var {
 
 #[derive(Clone,Hash,Eq,PartialEq)]
 pub struct Func {
-    pub name: String
+    pub name: String,
+    pub update: Option<i32>,
 }
 
 #[derive(Clone)]
@@ -26,6 +27,7 @@ pub enum AST {
     For(Var, Box<AST>, Range),
     Assign(Func),
     Vectorize(Var, Box<AST>, Range),
+    Parallel(Var, Box<AST>, Range),
     StoreAt(Func),
     Sequence(Vec<AST>)
 }
@@ -42,6 +44,7 @@ impl ASTUtils for AST {
         match self {
             AST::For(_, _, _) => true,
             AST::Vectorize(_, _, _) => true,
+            AST::Parallel(_, _, _) => true,
             _ => false
         }
     }
@@ -50,6 +53,7 @@ impl ASTUtils for AST {
         match self {
             AST::For(var, _, _) => Some(var.clone()),
             AST::Vectorize(var, _, _) => Some(var.clone()),
+            AST::Parallel(var, _, _) => Some(var.clone()),
             _ => None
         }
     }
@@ -60,6 +64,7 @@ impl ASTUtils for AST {
             AST::Consume(_, ast) => Some(*ast.clone()),
             AST::For(_, ast, _) => Some(*ast.clone()),
             AST::Vectorize(_, ast, _) => Some(*ast.clone()),
+            AST::Parallel(_, ast, _) => Some(*ast.clone()),
             AST::Sequence(asts) => {
                 if asts.len() == 1 {
                     Some(asts[0].clone())
@@ -74,6 +79,7 @@ impl ASTUtils for AST {
         match self {
             AST::For(_, _, range) => Some(range.clone()),
             AST::Vectorize(_, _, range) => Some(range.clone()),
+            AST::Parallel(_, _, range) => Some(range.clone()),
             _ => None
         }
     }
@@ -87,8 +93,13 @@ pub fn find_reorders(opts: &Options, original_ast: &AST, target_ast: &AST) -> Ve
     get_reorders_internal(opts, original_ast, target_ast)
 }
 
-pub fn get_store_at(opts: &Options, ast: &AST) -> Vec<(Func, Var)> {
-    get_store_at_internal(opts, &None, ast)
+pub fn get_store_at(opts: &Options, ast: &AST) -> Vec<(Func, Func, Var)> {
+    let func_lookup_table = crate::ast::analysis::func_table_for(opts, ast);
+    let mut res = Vec::new();
+    for (func, var) in get_store_at_internal(opts, &None, ast) {
+        res.push((func, func_lookup_table.get(&var).unwrap().clone(), var))
+    }
+    res
 }
 
 pub fn get_store_at_internal(opts: &Options, parent_variable: &Option<&Var>, ast: &AST) -> Vec<(Func, Var)> {
@@ -106,6 +117,9 @@ pub fn get_store_at_internal(opts: &Options, parent_variable: &Option<&Var>, ast
             vec![]
         },
         AST::Vectorize(var, ast, range) => {
+            get_store_at_internal(opts, &Some(&var), ast)
+        },
+        AST::Parallel(var, ast, range) => {
             get_store_at_internal(opts, &Some(&var), ast)
         },
         AST::StoreAt(func) => {
@@ -167,7 +181,7 @@ fn get_compute_at_internal(opts: &Options, ast: &AST, outer_producer: &Option<Fu
             // anything to do with this.
             get_compute_at_internal(opts, ast, new_outer, new_inner, last_variable)
         },
-        AST::For(var, subast, _range) | AST::Vectorize(var, subast, _range) => {
+        AST::For(var, subast, _range) | AST::Vectorize(var, subast, _range) | AST::Parallel(var, subast, _range) => {
             get_compute_at_internal(opts, subast, new_outer, new_inner, &Some(var.clone()))
         },
         AST::Assign(_var) => {
@@ -235,6 +249,7 @@ fn get_vectorized_internal(_opts: &Options, ast: &AST, current_producer: &Option
             }
         },
         AST::For(_, ast, _range) => get_vectorized_internal(_opts, ast, current_producer),
+        AST::Parallel(_, ast, _range) => get_vectorized_internal(_opts, ast, current_producer),
         AST::Assign(_) => Vec::new(),
         AST::StoreAt(_) => Vec::new(),
         AST::Sequence(seq) => {
@@ -246,4 +261,50 @@ fn get_vectorized_internal(_opts: &Options, ast: &AST, current_producer: &Option
             v
         }
     }
+}
+
+fn get_parallel_internal(_opts: &Options, ast: &AST, current_producer: &Option<Func>) -> Vec<(Func, Var)> {
+    // recursively walk through the AST and
+    // check if there is a vectorize node --- return the producer
+    // that contains it, and the variable that is vectorized.
+    // when you hit a new produce, reset the producer we are tracking
+    match ast {
+        AST::Produce(var, ast) => {
+            let producer = Some(var.clone());
+            get_parallel_internal(_opts, ast, &producer)
+        },
+        AST::Consume(_var, ast) => {
+			// Do not update the producer for a consume
+            get_parallel_internal(_opts, ast, current_producer)
+        },
+        AST::Vectorize(_var, children, _range) => {
+            get_parallel_internal(_opts, children, current_producer)
+        },
+        AST::For(_, ast, _range) => get_parallel_internal(_opts, ast, current_producer),
+        AST::Parallel(var, ast, _range) => {
+            match current_producer {
+                Some(p_name) => {
+                    let mut v = get_parallel_internal(_opts, ast, current_producer);
+                    v.push((p_name.clone(), var.clone()));
+                    v
+                },
+                None => panic!("Parallel without corresponding producer")
+            }
+        },
+        AST::Assign(_) => Vec::new(),
+        AST::StoreAt(_) => Vec::new(),
+        AST::Sequence(seq) => {
+            // recurse on each element of seq, and join the results into a single vec
+            let mut v = Vec::new();
+            for e in seq.iter() {
+                v.extend(get_parallel_internal(_opts, e, current_producer));
+            };
+            v
+        }
+    }
+}
+
+// Gets a list of the the vectorize commands required.
+pub fn get_parallel(opts: &Options, ast: &AST) -> Vec<(Func, Var)> {
+    get_parallel_internal(opts, ast, &None)
 }

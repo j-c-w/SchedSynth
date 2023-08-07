@@ -403,6 +403,10 @@ fn variables(ast: &AST) -> HashSet<Var> {
             vars.insert(var.clone());
             vars.extend(variables(&*ast));
         },
+        AST::Parallel(var, ast, _range) => {
+            vars.insert(var.clone());
+            vars.extend(variables(&*ast));
+        },
         AST::Sequence(asts) => {
             for ast in asts {
                 vars.extend(variables(&ast));

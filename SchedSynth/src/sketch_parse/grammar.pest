@@ -5,7 +5,7 @@ colon = { ":" }
 number = { digit+ }
 range = { whitespace_plus ~ "in" ~ whitespace_star ~ "[" ~ number ~ whitespace_star ~ "," ~ whitespace_star ~ number ~ whitespace_star ~ "]" }
 
-ident = { alpha+ }
+ident = { (alpha | digit) + }
 newline = { whitespace* ~ "\n"}
 
 indent = { "  " }
@@ -18,6 +18,7 @@ produce = { "produce" ~ whitespace_plus ~ ident ~ colon }
 consume = { "consume" ~ whitespace_plus ~ ident ~ colon }
 pfor = {"for" ~ whitespace_plus ~ ident ~ optional_range ~ colon }
 vectorize = { "vectorized" ~ whitespace_plus ~ ident ~ optional_range ~ colon }
+parallel = { "parallel" ~ whitespace_plus ~ ident ~ optional_range ~ colon }
 assignment = {ident ~ "(...) = ..."}
 store_at = { "store" ~ whitespace_plus ~ ident }
 
@@ -38,4 +39,5 @@ sequence =
   | indent_nest ~ pfor
   | indent_nest ~ store_at
   | indent_nest ~ assignment
-  | indent_nest ~ vectorize }
+  | indent_nest ~ vectorize
+  | indent_nest ~ parallel }

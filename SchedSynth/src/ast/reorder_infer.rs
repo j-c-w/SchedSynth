@@ -135,11 +135,11 @@ fn get_orders(opts: &Options, ast: &AST, current_producer: &Option<Func>,
             // cases where it should?
             get_orders(opts, ast, current_producer, orders);
         },
-        AST::For(var, ast, _range) | AST::Vectorize(var, ast, _range) => {
+        AST::For(var, ast, _range) | AST::Vectorize(var, ast, _range) | AST::Parallel(var, ast, _range) => {
             // insert var.clone() into the vec in the orders map at the current_producer.
             // if current_producer is None use "_top_level".  If orders hashmap doens't
             // have current_producer, then create a new singleton vec for it.
-            let producer_name = current_producer.clone().unwrap_or(Func{ name: "_top_level".to_string()});
+            let producer_name = current_producer.clone().unwrap_or(Func{ name: "_top_level".to_string(), update: None });
             let order_vec = orders.entry(producer_name).or_insert(vec![]);
             order_vec.push(var.clone());
             

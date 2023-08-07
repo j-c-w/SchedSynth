@@ -79,6 +79,10 @@ fn range_table_for_internal(opts: &Options, ast: &AST, table: &mut HashMap<Var, 
             table.insert(var.clone(), range.clone());
             range_table_for_internal(opts, ast, table)
         },
+        AST::Parallel(var, ast, range) => {
+            table.insert(var.clone(), range.clone());
+            range_table_for_internal(opts, ast, table)
+        },
         AST::Sequence(asts) => {
             for ast in asts {
                 range_table_for_internal(opts, ast, table);
@@ -115,6 +119,9 @@ fn func_table_internal(opts: &Options, ast: &AST, current_producer: &Option<Func
             if !table.contains_key(var) {
                 if let Some(producer) = current_producer {
                     table.insert(var.clone(), producer.clone());
+                    if opts.debug_func_table { 
+                        println!("Adding {}, {} to table", var.clone(), producer.clone());
+                    }
                 } else {
                     panic!("No producer for variable {:?}", var.to_string());
                 }
@@ -129,6 +136,21 @@ fn func_table_internal(opts: &Options, ast: &AST, current_producer: &Option<Func
         },
         AST::StoreAt(_func) => { },
         AST::Vectorize(var, body, _) => {
+            // if the variable already exists in the table, then we
+            // don't need to do anything
+            if !table.contains_key(var) {
+                if let Some(producer) = current_producer {
+                    table.insert(var.clone(), producer.clone());
+                } else {
+                    panic!("No producer for variable {:?}", var.to_string());
+                }
+            } else {
+                // TODO -- want to deal with this warning eventually
+                println!("Warning: encountered variable {} more than once", var)
+            }
+            func_table_internal(opts, body, current_producer, table);
+        },
+        AST::Parallel(var, body, _) => {
             // if the variable already exists in the table, then we
             // don't need to do anything
             if !table.contains_key(var) {

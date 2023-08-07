@@ -1,4 +1,4 @@
-produce prod:
+produce prod.1:
   for x:
     store cons
     for a:

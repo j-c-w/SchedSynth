@@ -20,6 +20,8 @@ pub struct Options {
     pub debug_reorder: bool,
     pub debug_split: bool,
     pub debug_reshape: bool,
+
+    pub debug_func_table: bool,
 }
 
 pub fn parse_options() -> Options {
@@ -75,6 +77,11 @@ pub fn parse_options() -> Options {
 			.long("debug-split")
 			.help("debug the split inference pass")
 		)
+		.arg(
+			Arg::new("debug-func-table")
+			.long("debug-func-table")
+			.help("debug the func table generation")
+		)
         .get_matches();
 
     // initialize to defaults
@@ -91,6 +98,7 @@ pub fn parse_options() -> Options {
         debug_reorder: args.is_present("debug-reorder"),
         debug_reshape: args.is_present("debug-reshape"),
         debug_split: args.is_present("debug-split"),
+        debug_func_table: args.is_present("debug-func-table")
     };
 
     return opts;

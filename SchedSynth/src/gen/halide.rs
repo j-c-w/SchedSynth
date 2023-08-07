@@ -2,7 +2,8 @@ use crate::options::options::Options;
 
 #[derive(Clone)]
 pub struct HFunc {
-    pub name: String
+    pub name: String,
+    pub update: Option<i32>,
 }
 
 #[derive(Clone)]
@@ -13,10 +14,11 @@ pub struct HVar {
 #[derive(Clone)]
 pub enum HalideCommand {
     Vectorize(HFunc, HVar), // HFunc to vectorize
+    Parallel(HFunc, HVar), // HFunc to vectorize
     Unroll(HFunc, i32), // HFunc to unroll, unroll factor.
     Tile(), // HFunc to tile, 
     ComputeAt(HFunc, HFunc, HVar), // Compute func at func at varaiable
-    StoreAt(HFunc, HVar), // store func at variable
+    StoreAt(HFunc, HFunc, HVar), // store func at variable
     ComputeRoot(HFunc), // Compute func at func at varaiable
     Reorder(HFunc, (HVar, HVar)), // Reoder <to> hvar, hvar
     Split(HFunc, HVar, (HVar, HVar), i32), // split var into (var, var) with tiling factor i32
@@ -30,7 +32,10 @@ pub struct HalideProgram {
 
 impl ToString for HFunc {
     fn to_string(&self) -> String {
-        self.name.clone()
+        match self.update {
+            Some(up) => format!("{}.update({})", self.name.clone(), up),
+            None => self.name.clone()
+        }
     }
 }
 
@@ -45,13 +50,15 @@ impl ToString for HalideCommand {
         match self {
             HalideCommand::Vectorize(func, var) => format!("{}.vectorize({});", func.to_string(),
             var.to_string()),
+            HalideCommand::Parallel(func, var) => format!("{}.parallel({});", func.to_string(),
+            var.to_string()),
             HalideCommand::Unroll(func, factor) => format!("{}.Unroll({});", func.to_string(), factor),
             HalideCommand::Tile() => String::from("X.tile()"),
             HalideCommand::ComputeAt(func1, func2, var) => {
                 format!("{}.compute_at({}, {});", func1.to_string(), func2.to_string(), var.to_string())
             }
-            HalideCommand::StoreAt(func, var) => {
-                format!("{}.store_at({})", func.to_string(), var.to_string())
+            HalideCommand::StoreAt(func, func2, var) => {
+                format!("{}.store_at({}, {});", func.to_string(), func2.to_string(), var.to_string())
             },
             HalideCommand::ComputeRoot(func) => {
                 format!("{}.compute_root();", func.to_string())

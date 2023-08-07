@@ -13,19 +13,30 @@ fn to_halide_vectorize(commands: Vec<(Func, Var)>) -> Vec<HalideCommand> {
     // to vectorize (hvar).
     let mut halide_commands = Vec::new();
     for (func, hvar) in commands {
-        let hfunc = HFunc { name: func.name };
+        let hfunc = HFunc { name: func.name, update: func.update };
         let hhvar = HVar { name: hvar.name };
         halide_commands.push(HalideCommand::Vectorize(hfunc, hhvar));
     }
     halide_commands
 }
 
-fn to_halide_store_at(commands: Vec<(Func, Var)>) -> Vec<HalideCommand> {
+fn to_halide_parallel(commands: Vec<(Func, Var)>) -> Vec<HalideCommand> {
     let mut halide_commands = Vec::new();
     for (func, hvar) in commands {
-        let hfunc = HFunc { name: func.name };
+        let hfunc = HFunc { name: func.name, update: func.update };
         let hhvar = HVar { name: hvar.name };
-        halide_commands.push(HalideCommand::StoreAt(hfunc, hhvar));
+        halide_commands.push(HalideCommand::Parallel(hfunc, hhvar));
+    }
+    halide_commands
+}
+
+fn to_halide_store_at(commands: Vec<(Func, Func, Var)>) -> Vec<HalideCommand> {
+    let mut halide_commands = Vec::new();
+    for (func, func2, hvar) in commands {
+        let hfunc = HFunc { name: func.name, update: func.update };
+        let hfunc2 = HFunc { name: func2.name, update: func2.update };
+        let hhvar = HVar { name: hvar.name };
+        halide_commands.push(HalideCommand::StoreAt(hfunc, hfunc2, hhvar));
     }
     halide_commands
 }
@@ -35,11 +46,11 @@ fn to_halide_store_at(commands: Vec<(Func, Var)>) -> Vec<HalideCommand> {
 fn to_halide_compute_at(commands: Vec<(Func, Option<Func>, Option<Var>)>) -> Vec<HalideCommand> {
     let mut halide_commands = Vec::new();
     for (func, compute_at_func, hvar) in commands {
-        let hfunc = HFunc { name: func.name };
+        let hfunc = HFunc { name: func.name, update: func.update };
         match (compute_at_func, hvar) {
             (Some(compute_at_func), Some(hvar)) => {
                 let hhvar = HVar { name: hvar.name };
-                let hcompute_at_func = HFunc { name: compute_at_func.name };
+                let hcompute_at_func = HFunc { name: compute_at_func.name, update: func.update };
                 halide_commands.push(HalideCommand::ComputeAt(hfunc, hcompute_at_func, hhvar));
             },
             (None, None) => {
@@ -59,7 +70,7 @@ fn to_halide_compute_at(commands: Vec<(Func, Option<Func>, Option<Var>)>) -> Vec
 fn to_halide_reorder(commands: Vec<(Func, Var, Var)>) -> Vec<HalideCommand> {
  let mut halide_commands = Vec::new();
     for (func, compute_at_func, hvar) in commands {
-        let hfunc = HFunc { name: func.name };
+        let hfunc = HFunc { name: func.name, update: func.update };
         let hvar1 = HVar { name: compute_at_func.name };
         let hvar2 = HVar { name: hvar.name };
         halide_commands.push(HalideCommand::Reorder(hfunc, (hvar1, hvar2)));
@@ -76,21 +87,21 @@ fn to_halide_reshape(commands: &Vec<Reshape>) -> Vec<HalideCommand> {
         match command {
             // TODO -- figure out how to get the producer name into here.
             Reshape::Split(func, var, (var1, var2), factor) => {
-                let hfunc = HFunc { name: func.name.clone() };
+                let hfunc = HFunc { name: func.name.clone(), update: func.update.clone() };
                 let hvar = HVar { name: var.name.clone() };
                 let hvar1 = HVar { name: var1.name.clone() };
                 let hvar2 = HVar { name: var2.name.clone() };
                 halide_commands.push(HalideCommand::Split(hfunc, hvar, (hvar1, hvar2), factor.clone()));
             },
             Reshape::Fuse(func, (var1, var2), var) => {
-                let hfunc = HFunc { name: func.name.clone() };
+                let hfunc = HFunc { name: func.name.clone(), update: func.update.clone() };
                 let hvar = HVar { name: var.name.clone() };
                 let hvar1 = HVar { name: var1.name.clone() };
                 let hvar2 = HVar { name: var2.name.clone() };
                 halide_commands.push(HalideCommand::Fuse(hfunc, (hvar1, hvar2), hvar));
             },
             Reshape::Reorder(func, (var1, var2)) => {
-                let hfunc = HFunc { name: func.name.clone() };
+                let hfunc = HFunc { name: func.name.clone(), update: func.update.clone() };
                 let hvar1 = HVar { name: var1.name.clone() };
                 let hvar2 = HVar { name: var2.name.clone() };
                 halide_commands.push(HalideCommand::Reorder(hfunc, (hvar1, hvar2)));
@@ -106,6 +117,7 @@ fn synthesize_candidates(opts: &Options, source: &AST, target: &AST, reshapes: &
     let compute_at_calls = to_halide_compute_at(crate::ast::ast::get_compute_at(opts, target));
     let store_at_calls = to_halide_store_at(crate::ast::ast::get_store_at(opts, target));
     let vectorize_calls = to_halide_vectorize(crate::ast::ast::get_vectorized(opts, target));
+    let parallel_calls = to_halide_parallel(crate::ast::ast::get_parallel(opts, target));
     if opts.debug_synthesizer {
         println!("Got {} vectorize calls", vectorize_calls.len());
     }
@@ -116,6 +128,7 @@ fn synthesize_candidates(opts: &Options, source: &AST, target: &AST, reshapes: &
     unambiguous_calls.extend(compute_at_calls);
     unambiguous_calls.extend(store_at_calls);
     unambiguous_calls.extend(vectorize_calls);
+    unambiguous_calls.extend(parallel_calls);
 
     return vec![
         HalideProgram { commands: unambiguous_calls }

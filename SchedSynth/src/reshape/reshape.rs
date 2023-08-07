@@ -147,7 +147,7 @@ fn apply_reshape(ast: &AST, reshape: &Reshape) -> (AST, bool) {
         None => {
             // recurve through the ast and see if we can find somehwere
             // to apply the reshape.
- match ast {
+            match ast {
                 AST::Produce(func, ast) => {
                     let (new_ast, applied) = apply_reshape(&*ast, reshape);
                     (AST::Produce(func.clone(), Box::new(new_ast)), applied)
@@ -169,6 +169,10 @@ fn apply_reshape(ast: &AST, reshape: &Reshape) -> (AST, bool) {
                 AST::Vectorize(var, ast, range) => {
                     let (new_ast, applied) = apply_reshape(&*ast, reshape);
                     (AST::Vectorize(var.clone(), Box::new(new_ast), range.clone()), applied)
+                }
+                AST::Parallel(var, ast, range) => {
+                    let (new_ast, applied) = apply_reshape(&*ast, reshape);
+                    (AST::Parallel(var.clone(), Box::new(new_ast), range.clone()), applied)
                 }
                 AST::Sequence(asts) => {
                     let mut new_asts = Vec::new();
@@ -242,7 +246,7 @@ fn enforce_nested(opts: &Options, ast: &AST, outer: Var, inner: Var, func_lookup
         AST::Consume(_func, subast) => {
             enforce_nested(opts, &*subast, outer, inner, func_lookup, found_outer, found_inner)
         },
-        AST::For(var, subast, _range) | AST::Vectorize(var, subast, _range) => {
+        AST::For(var, subast, _range) | AST::Vectorize(var, subast, _range) | AST::Parallel(var, subast, _range) => {
             let this_is_inner = *var == inner;
             let this_is_outer = *var == outer;
             if opts.debug_reshape {

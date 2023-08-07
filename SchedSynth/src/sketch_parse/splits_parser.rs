@@ -70,6 +70,18 @@ impl ToString for SplitsAST
     }
 }
 
+fn process_factor(_opts: &Options, rule: Pair<Rule>) -> i32 {
+    match rule.as_rule() {
+        Rule::factor => {
+            // convert rule string into i32
+            let factor_str = rule.as_span().as_str();
+            let factor_int = factor_str.parse::<i32>().unwrap();
+            factor_int
+        }
+        _ => panic!("Expected factor, got {:?}", rule.as_str()),
+    }
+}
+
 fn process_ident(opts: &Options, rule: Pair<Rule>) -> Variable {
     match rule.as_rule() {
         Rule::ident => {
@@ -123,9 +135,12 @@ fn process(opts: &Options, rule: Pair<Rule>) -> Vec<SplitsAST> {
             let _ = inner.next(); // whitespace
             let _ = inner.next(); // whitespace
             let split_to_2 = process_ident(opts, inner.next().unwrap());
+            let _ = inner.next(); // whitespace
+            let _ = inner.next(); // whitespace
+            let split_factor = process_factor(opts, inner.next().unwrap());
 
             // TODO -- load the split factor
-            vec![SplitsAST::Split(split_from, (split_to_1, split_to_2), 0)]
+            vec![SplitsAST::Split(split_from, (split_to_1, split_to_2), split_factor)]
         },
         Rule::fuse => {
             let mut inner = rule.into_inner();

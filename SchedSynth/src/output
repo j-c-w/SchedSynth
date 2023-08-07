@@ -1,3 +1,4 @@
+prod.update(1).split(x, a, b, 3);
 cons.compute_at(prod, a);
-prod.compute_root();
-cons.store_at(x)
+prod.update(1).compute_root();
+cons.store_at(prod.update(1), x);
