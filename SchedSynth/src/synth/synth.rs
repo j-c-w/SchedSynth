@@ -113,7 +113,11 @@ fn to_halide_reshape(commands: &Vec<Reshape>) -> Vec<HalideCommand> {
 
 fn synthesize_candidates(opts: &Options, source: &AST, target: &AST, reshapes: &Vec<Reshape>) -> Vec<HalideProgram> {
     // Go through the various halide exprs and get the calls for them.
-    let splits = to_halide_reshape(&crate::ast::ast::insert_reorders(opts, reshapes, source, target));
+    let infered_reshapes = &crate::ast::ast::insert_reorders(opts, reshapes, source, target);
+    let infered_reorders = &crate::reshape::reshape::infer_reorders_between(opts, source, target, infered_reshapes);
+
+    let splits = to_halide_reshape(infered_reshapes);
+    let reorders = to_halide_reshape(infered_reorders);
     let compute_at_calls = to_halide_compute_at(crate::ast::ast::get_compute_at(opts, target));
     let store_at_calls = to_halide_store_at(crate::ast::ast::get_store_at(opts, target));
     let vectorize_calls = to_halide_vectorize(crate::ast::ast::get_vectorized(opts, target));
@@ -125,6 +129,7 @@ fn synthesize_candidates(opts: &Options, source: &AST, target: &AST, reshapes: &
     let mut unambiguous_calls = Vec::new();
     unambiguous_calls.extend(splits); // TODO -- splits are ambiguious --- use synthesis to
                                       // find which splitting is the best strategy?
+    unambiguous_calls.extend(reorders);
     unambiguous_calls.extend(compute_at_calls);
     unambiguous_calls.extend(store_at_calls);
     unambiguous_calls.extend(vectorize_calls);

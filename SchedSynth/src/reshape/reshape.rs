@@ -356,3 +356,15 @@ pub fn inject_reorders(opts: &Options, ast: &AST, reshapes: &Vec<Reshape>) -> Ve
 
     result_reshapes
 }
+
+pub fn infer_reorders_between(opts: &Options, orig_ast: &AST, targ_ast: &AST, transformations: &Vec<Reshape>) -> Vec<Reshape> {
+    // Assuming that orig_ast and targ_ast both have the same
+    // set of variables, infer the rewrites required
+    // to convert one to the other
+    
+    let transformed_orig = apply_reshapes(orig_ast, transformations);
+    
+    let reorders = crate::ast::ast::find_reorders(opts, &transformed_orig, targ_ast);
+
+    reorders.iter().map(|(f, v, v2)| Reshape::Reorder(f.clone(), (v.clone(), v2.clone()))).collect()
+}
