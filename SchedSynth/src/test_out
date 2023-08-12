@@ -1,10 +1,10 @@
-produce prod.1:
+produce consumer:
   for x:
-    store cons
-    for a:
-      produce cons:
-        for x:
-          for y:
-            cons(...) = ...
-      for y:
-        prod(...) = ...
+    store producer
+    for y:
+      produce producer:
+        for a:
+          for b:
+            producer(...) = ...
+      for z:
+        consumer(...) = ...

@@ -1,9 +1,9 @@
-produce prod.1:
+produce producer:
   for a:
-    for x:
-      for y:
-        prod(...) = ...
-produce cons:
-  for x:
+    for b:
+      producer(...) = ...
+produce consumer:
+  for z:
     for y:
-      cons(...) = ...
+      for x:
+        consumer(...) = ...

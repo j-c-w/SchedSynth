@@ -5,6 +5,7 @@ mod sketch_parse;
 mod synth;
 mod utils;
 mod reshape;
+mod runner;
 
 fn main() {
     let options = options::options::parse_options();

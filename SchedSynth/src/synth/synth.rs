@@ -5,6 +5,7 @@ use crate::gen::halide::HVar;
 use crate::ast::ast::*;
 use crate::reshape::reshape::Reshape;
 use crate::options::options::Options;
+use crate::runner::runner::evaluate_options;
 
 // Conert the the pairs of func and variable into
 // vectorize halide commands.
@@ -142,6 +143,7 @@ fn synthesize_candidates(opts: &Options, source: &AST, target: &AST, reshapes: &
 
 pub fn synthesize_from_sketch(opts: &Options, source: &AST, target: &AST, reshapes: &Vec<Reshape>) -> HalideProgram {
     let candidates = synthesize_candidates(opts, source, target, reshapes);
-    // todo -- pick best
-    return candidates[0].clone()
+    let best_candidate = crate::runner::runner::best_schedule(opts, candidates);
+
+    return best_candidate
 }

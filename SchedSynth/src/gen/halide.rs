@@ -30,6 +30,17 @@ pub struct HalideProgram {
     pub commands: Vec<HalideCommand>
 }
 
+impl ToString for HalideProgram {
+    fn to_string(&self) -> String {
+        let mut result = String::new();
+        for command in &self.commands {
+            result.push_str(&command.to_string());
+            result.push_str("\n");
+        }
+        result
+    }
+}
+
 impl ToString for HFunc {
     fn to_string(&self) -> String {
         match self.update {

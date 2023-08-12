@@ -97,7 +97,22 @@ pub fn get_reorders_internal(opts: &Options, original_ast: &AST, target_ast: &AS
 	if opts.debug_reorder {
 		println!("In total, have {} reorders", reversed_orders.len());
 	};
-    reversed_orders
+
+    // Now, sort these re-orders so they are in the correct
+    // order to be applied -- Halide is pretty flexible
+    // in this regard, but it struggles if we give it
+    // the reorders in /any/ order.
+    topo_sort(original_ast, reversed_orders)
+}
+
+fn topo_sort(opts: &Options, ast: &AST, orders: Vec<(Func, Var, Var)>) -> Vec<(Func, Var, Var)> {
+    let mut original_order = HashMap::<Func, Vec<Var>>::new();
+    get_orders(opts, &ast, &None, &mut original_order);
+
+    let result_vec = Vec::new();
+    while orders.len() > 0 {
+        TODO --- Do a topo sort here.
+    }
 }
 
 // Reutrn a map from each var in the input to all of the vars

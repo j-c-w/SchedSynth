@@ -13,6 +13,12 @@ pub struct Options {
     pub reshapes: String,
     pub dest: String,
 
+    // Other settings flags
+    pub execution_dir: String,
+    pub halide_dir: String,
+
+    pub halide_program: String,
+
 	// debug flags
 	pub debug_parser: bool,
 	pub debug_synthesizer: bool,
@@ -20,6 +26,7 @@ pub struct Options {
     pub debug_reorder: bool,
     pub debug_split: bool,
     pub debug_reshape: bool,
+    pub debug_execution: bool,
 
     pub debug_func_table: bool,
 }
@@ -52,6 +59,29 @@ pub fn parse_options() -> Options {
             .required(true)
             .index(4)
         )
+        // optional string flag called execution_dir (used as --execution-dir)
+        // with default 'execution'
+        .arg(
+            Arg::with_name("execution_dir")
+            .long("execution-dir")
+            .help("Execution directory")
+            .takes_value(true)
+            .default_value("execution")
+        )
+        .arg(
+            Arg::with_name("halide_dir")
+            .long("halide-dir")
+            .help("Directory of Halide install")
+            .takes_value(true)
+            .default_value("halide")
+        )
+        .arg(
+            Arg::with_name("halide_program")
+            .long("halide-program")
+            .help("The skeleton of the halide program into which we can execute syntheiszed schedules.")
+            .takes_value(true)
+            .default_value("halide.cpp")
+        )
         .arg(
             Arg::new("debug-parser")
             .long("debug-parser")
@@ -78,6 +108,11 @@ pub fn parse_options() -> Options {
 			.help("debug the split inference pass")
 		)
 		.arg(
+			Arg::new("debug-execution")
+			.long("debug-execution")
+			.help("debug the execution pass")
+		)
+		.arg(
 			Arg::new("debug-func-table")
 			.long("debug-func-table")
 			.help("debug the func table generation")
@@ -93,12 +128,18 @@ pub fn parse_options() -> Options {
         reshapes: args.value_of("reshapes").unwrap().into(),
         dest: args.value_of("dest").unwrap().into(),
 
+        execution_dir: args.value_of("execution_dir").unwrap().into(),
+        halide_dir: args.value_of("halide_dir").unwrap().into(),
+
+        halide_program: args.value_of("halide_program").unwrap().into(),
+
         debug_parser: args.is_present("debug-parser"),
 		debug_synthesizer: args.is_present("debug-synthesizer"),
         debug_reorder: args.is_present("debug-reorder"),
         debug_reshape: args.is_present("debug-reshape"),
         debug_split: args.is_present("debug-split"),
-        debug_func_table: args.is_present("debug-func-table")
+        debug_func_table: args.is_present("debug-func-table"),
+        debug_execution: args.is_present("debug-execution"),
     };
 
     return opts;
