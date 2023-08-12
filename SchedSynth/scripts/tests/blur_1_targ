@@ -1,0 +1,10 @@
+produce consumer:
+  parallel yo:
+    store producer
+    for yi in [0, 15]:
+      produce producer:
+        producer(...) = ...
+      consume producer:
+        for xo:
+          vectorized xi in [0, 3]:
+            consumer(...) = ...

@@ -1,0 +1,4 @@
+produce consumer:
+  for y:
+    for x:
+      consumer(...) = ...
