@@ -21,6 +21,7 @@ vectorize = { "vectorized" ~ whitespace_plus ~ ident ~ optional_range ~ colon }
 parallel = { "parallel" ~ whitespace_plus ~ ident ~ optional_range ~ colon }
 assignment = {ident ~ "(...) = ..."}
 store_at = { "store" ~ whitespace_plus ~ ident }
+unroll = { "unroll" ~ whitespace_plus ~ ident ~ whitespace_plus ~ number ~ whitespace_plus ~ colon}
 
 whitespace = { " " | "\t" }
 whitespace_plus = { whitespace+ }
@@ -40,4 +41,5 @@ sequence =
   | indent_nest ~ store_at
   | indent_nest ~ assignment
   | indent_nest ~ vectorize
+  | indent_nest ~ unroll
   | indent_nest ~ parallel }

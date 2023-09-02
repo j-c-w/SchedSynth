@@ -29,6 +29,7 @@ pub struct Options {
     pub debug_execution: bool,
 
     pub debug_func_table: bool,
+    pub debug_reorder_topo: bool,
 }
 
 pub fn parse_options() -> Options {
@@ -117,6 +118,11 @@ pub fn parse_options() -> Options {
 			.long("debug-func-table")
 			.help("debug the func table generation")
 		)
+		.arg(
+			Arg::new("debug-reorder-topo")
+			.long("debug-reorder-topo")
+			.help("debug the reorder toposort pass")
+		)
         .get_matches();
 
     // initialize to defaults
@@ -140,6 +146,8 @@ pub fn parse_options() -> Options {
         debug_split: args.is_present("debug-split"),
         debug_func_table: args.is_present("debug-func-table"),
         debug_execution: args.is_present("debug-execution"),
+
+        debug_reorder_topo: args.is_present("debug-reorder-topo"),
     };
 
     return opts;

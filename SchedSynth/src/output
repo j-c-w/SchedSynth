@@ -1,6 +1,6 @@
 consumer.reorder(y, x);
-consumer.reorder(z, y);
 consumer.reorder(z, x);
+consumer.reorder(z, y);
 producer.compute_at(consumer, y);
 consumer.compute_root();
 producer.store_at(consumer, x);

@@ -1,6 +1,7 @@
 #!/bin/bash
 
 set -x
+set -eu
 
 if [[ $# -ne 1 ]]; then
 	echo "Usage: $0 <testname>"

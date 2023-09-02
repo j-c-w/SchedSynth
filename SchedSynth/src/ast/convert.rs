@@ -2,8 +2,10 @@ use crate::ast::ast::AST;
 use crate::ast::ast::Range;
 use crate::ast::ast::Var;
 use crate::ast::ast::Func;
+use crate::ast::ast::Property;
 use crate::sketch_parse::parser::SketchAST;
 use crate::sketch_parse::parser::RangeAST;
+use crate::sketch_parse::parser::ASTLoopProperty;
 
 use std::fmt;
 
@@ -30,17 +32,41 @@ impl fmt::Display for Range {
     }
 }
 
+impl fmt::Display for Property {
+ fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match *self {
+            Property::Vectorize() => write!(f, "vectorize"),
+            Property::Parallel() => write!(f, "parallel"),
+            Property::Unroll(ref n) => write!(f, "unroll({})", n)
+        }
+    }
+}
+
+impl PartialEq for Property {
+    fn eq(&self, other: &Property) -> bool {
+        match (self, other) {
+            (&Property::Vectorize(), &Property::Vectorize()) => true,
+            (&Property::Parallel(), &Property::Parallel()) => true,
+            (&Property::Unroll(ref n1), &Property::Unroll(ref n2)) => n1 == n2,
+            _ => false
+        }
+    }
+}
+
+
 // implement ToString for AST
 impl fmt::Display for AST {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match *self {
             AST::Produce(ref var, ref ast) => write!(f, "produce {} in ({})", var, ast),
             AST::Consume(ref var, ref ast) => write!(f, "consume {} in ({})", var, ast),
-            AST::For(ref var, ref ast, ref range) => write!(f, "for {} in {}: ({})", var, range, ast),
+            AST::For(ref var, ref ast, ref range, ref properties) => {
+                let property_string = 
+                    properties.iter().map(|p| p.to_string()).collect::<Vec<String>>().join(", ");
+                write!(f, "for {} [{}] in {}: ({})", var, property_string, range, ast)
+            },
             AST::Assign(ref var) => write!(f, "assign {}", var),
             AST::StoreAt(ref var) => write!(f, "store {} here", var),
-            AST::Vectorize(ref var, ref ast, ref range) => write!(f, "vectorize {} in {}: ({})", var, range, ast),
-            AST::Parallel(ref var, ref ast, ref range) => write!(f, "parallel {} in {}: ({})", var, range, ast),
             AST::Sequence(ref ast) => {
                 let mut s = String::new();
                 for a in ast {
@@ -99,17 +125,11 @@ pub fn ast_from_sketch_ast(input: SketchAST) -> AST {
         SketchAST::Consume(_nesting, var, ast) => {
             AST::Consume(variable_to_func(var), Box::new(ast_from_sketch_ast(*ast)))
         },
-        SketchAST::For(_nesting, var, ast, range) => {
-            AST::For(variable_to_var(var), Box::new(ast_from_sketch_ast(*ast)), ast_from_range(range))
+        SketchAST::For(_nesting, var, ast, range, properties) => {
+            AST::For(variable_to_var(var), Box::new(ast_from_sketch_ast(*ast)), ast_from_range(range), properties_from_loop_properties(properties))
         },
         SketchAST::Assign(_nesting, var) => {
             AST::Assign(variable_to_func(var))
-        },
-        SketchAST::Vectorize(_nesting, var, children, range) => {
-            AST::Vectorize(variable_to_var(var), Box::new(ast_from_sketch_ast(*children)), ast_from_range(range))
-        },
-        SketchAST::Parallel(_nesting, var, children, range) => {
-            AST::Parallel(variable_to_var(var), Box::new(ast_from_sketch_ast(*children)), ast_from_range(range))
         },
         SketchAST::StoreAt(_nesting, var) => {
             AST::StoreAt(variable_to_func(var))
@@ -123,3 +143,16 @@ pub fn ast_from_sketch_ast(input: SketchAST) -> AST {
         },
     }
 }
+
+pub fn property_from_loop_property(input: ASTLoopProperty) -> Property {
+    match input {
+        ASTLoopProperty::Vectorize() => Property::Vectorize(),
+        ASTLoopProperty::Parallel() => Property::Parallel(),
+        ASTLoopProperty::Unroll(i) => Property::Unroll(i)
+    }
+}
+
+pub fn properties_from_loop_properties(input: Vec<ASTLoopProperty>) -> Vec<Property> {
+    input.into_iter().map(property_from_loop_property).collect()
+}
+

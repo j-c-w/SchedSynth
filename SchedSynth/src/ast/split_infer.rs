@@ -392,20 +392,12 @@ fn variables(ast: &AST) -> HashSet<Var> {
             vars.extend(variables(&*ast));
             vars.extend(variables(&*ast));
         },
-        AST::For(var, ast, _range) => {
+        AST::For(var, ast, _range, _properties) => {
             vars.insert(var.clone());
             vars.extend(variables(&*ast));
         },
         AST::Assign(_var) => {
             // this is a func var
-        },
-        AST::Vectorize(var, ast, _range) => {
-            vars.insert(var.clone());
-            vars.extend(variables(&*ast));
-        },
-        AST::Parallel(var, ast, _range) => {
-            vars.insert(var.clone());
-            vars.extend(variables(&*ast));
         },
         AST::Sequence(asts) => {
             for ast in asts {

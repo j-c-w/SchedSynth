@@ -62,14 +62,15 @@ fn can_apply(ast: &AST, reshape: &Reshape) -> Option<AST> {
         Reshape::Split(f, v, (v1, v2), factor) => {
             if ast.is_loop_type() {
                 let variable = ast.get_iteration_variable().unwrap(); //loop types must have iter var
+                let properties = ast.get_properties();
                 if variable == *v {
                     let inner_loop = ast.get_substruct().unwrap();
                     Some(
                         // TODO -- preserve vect/parallel?
                         AST::For(
                             v1.clone(), Box::new(AST::For(
-                                v2.clone(), Box::new(inner_loop), Range::Between(0, factor.clone())
-                            )), Range::All()
+                                v2.clone(), Box::new(inner_loop), Range::Between(0, factor.clone()), properties.clone()
+                            )), Range::All(), properties.clone()
                         )
                     )
                 } else {
@@ -85,19 +86,21 @@ fn can_apply(ast: &AST, reshape: &Reshape) -> Option<AST> {
                 if variable_1 == *v1 {
                     let inner_loop = ast.get_substruct().unwrap();
                     let v1_range = ast.get_iteration_range().unwrap();
+                    let v1_properties = ast.get_properties();
 
                     if inner_loop.is_loop_type() {
                         let variable_2 = inner_loop.get_iteration_variable().unwrap();
                         let v2_range = inner_loop.get_iteration_range().unwrap();
                         let inner_inner_loop = inner_loop.get_substruct().unwrap();
+                        let v2_properties = inner_loop.get_properties();
 
                         if variable_2 == *v2 {
                             Some(
-                                // TODO -- preserve vect/parallel?
                                 AST::For(
                                     v2.clone(), Box::new(AST::For(
-                                            v1.clone(), Box::new(inner_inner_loop), v1_range.clone()
-                                    )), v2_range.clone()
+                                            v1.clone(), Box::new(inner_inner_loop),
+                                            v1_range.clone(), v1_properties
+                                    )), v2_range.clone(), v2_properties
                                 )
                             )
                         } else {
@@ -122,10 +125,11 @@ fn can_apply(ast: &AST, reshape: &Reshape) -> Option<AST> {
                     let inner_variable = inner_loop.get_iteration_variable().unwrap();
                     let inner_inner_loop = inner_loop.get_substruct().unwrap();
 
+                    // We just throw away the properties here -- should we preseve?
                     if outer_variable == *v1 && inner_variable == *v2 {
                         Some(
                             AST::For(
-                                v.clone(), Box::new(inner_inner_loop), Range::All()
+                                v.clone(), Box::new(inner_inner_loop), Range::All(), vec![]
                             )
                         )
                     } else {
@@ -156,23 +160,15 @@ fn apply_reshape(ast: &AST, reshape: &Reshape) -> (AST, bool) {
                     let (new_ast, applied) = apply_reshape(&*ast, reshape);
                     (AST::Consume(func.clone(), Box::new(new_ast)), applied)
                 }
-                AST::For(var, ast, range) => {
+                AST::For(var, ast, range, properties) => {
                     let (new_ast, applied) = apply_reshape(&*ast, reshape);
-                    (AST::For(var.clone(), Box::new(new_ast), range.clone()), applied)
+                    (AST::For(var.clone(), Box::new(new_ast), range.clone(), properties.clone()), applied)
                 }
                 AST::Assign(func) => {
                     (AST::Assign(func.clone()), false)
                 }
                 AST::StoreAt(func) => {
                     (AST::StoreAt(func.clone()), false)
-                }
-                AST::Vectorize(var, ast, range) => {
-                    let (new_ast, applied) = apply_reshape(&*ast, reshape);
-                    (AST::Vectorize(var.clone(), Box::new(new_ast), range.clone()), applied)
-                }
-                AST::Parallel(var, ast, range) => {
-                    let (new_ast, applied) = apply_reshape(&*ast, reshape);
-                    (AST::Parallel(var.clone(), Box::new(new_ast), range.clone()), applied)
                 }
                 AST::Sequence(asts) => {
                     let mut new_asts = Vec::new();
@@ -246,7 +242,7 @@ fn enforce_nested(opts: &Options, ast: &AST, outer: Var, inner: Var, func_lookup
         AST::Consume(_func, subast) => {
             enforce_nested(opts, &*subast, outer, inner, func_lookup, found_outer, found_inner)
         },
-        AST::For(var, subast, _range) | AST::Vectorize(var, subast, _range) | AST::Parallel(var, subast, _range) => {
+        AST::For(var, subast, _range, properties) => {
             let this_is_inner = *var == inner;
             let this_is_outer = *var == outer;
             if opts.debug_reshape {

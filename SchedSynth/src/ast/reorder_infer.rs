@@ -102,16 +102,87 @@ pub fn get_reorders_internal(opts: &Options, original_ast: &AST, target_ast: &AS
     // order to be applied -- Halide is pretty flexible
     // in this regard, but it struggles if we give it
     // the reorders in /any/ order.
-    topo_sort(original_ast, reversed_orders)
+    topo_sort(opts, original_ast, reversed_orders)
 }
 
 fn topo_sort(opts: &Options, ast: &AST, orders: Vec<(Func, Var, Var)>) -> Vec<(Func, Var, Var)> {
     let mut original_order = HashMap::<Func, Vec<Var>>::new();
     get_orders(opts, &ast, &None, &mut original_order);
 
-    let result_vec = Vec::new();
-    while orders.len() > 0 {
-        TODO --- Do a topo sort here.
+    // Go by func:
+    let mut by_func = HashMap::<Func, HashSet::<(Var, Var)>>::new();
+    build_table_by_func(opts, &mut by_func, &orders);
+
+    let mut result_vec = Vec::new();
+
+    // iterate over the by_func table
+    for (func, func_reorders) in by_func.iter() {
+        let mut reorders = func_reorders.clone();
+        let mut order = original_order[func].clone();
+        let mut removed_last_time = true;
+
+        while reorders.len() > 0 {
+            if !removed_last_time {
+                panic!("Not making progress");
+            }
+            removed_last_time = false;
+
+            // iterate over reorders by index
+            for (i, (v1, v2)) in reorders.clone().iter().enumerate() {
+                let mut last_matched = false;
+                let mut removed_reorder = false; // when this gets set to true, have to remove it.
+
+                if opts.debug_reorder_topo {
+                    println!("Trying to schedule reorder {}, {} (func {})", v1.clone(), v2.clone(), func.clone());
+                    println!("Order is {:?}", order.clone());
+                }
+
+                let mut v1_index = 0;
+                let mut v2_index = 0;
+                for (j, v) in order.clone().iter().enumerate() {
+                    if last_matched && v == v2 {
+                        v2_index = j;
+                        // We got v1, v2 in order --- this is the swap
+                        // that we can do next.
+                        result_vec.push((func.clone(), v1.clone(), v2.clone()));
+                        // remove i from the reorders list
+                        reorders.remove(&(v1.clone(), v2.clone()));
+                        removed_reorder = true;
+
+                        // also need to apply this reorder :)
+                        let temp = order[v1_index].clone();
+                        order[v1_index] = order[v2_index].clone();
+                        order[v2_index] = temp;
+                        break;
+                    }
+
+                    if v == v1 {
+                        last_matched = true;
+                        v1_index = j;
+                    } else {
+                        last_matched = false;
+                    }
+                }
+
+                if removed_reorder {
+                    if opts.debug_reorder_topo {
+                        println!("Scheduled Successfully");
+                    }
+                    // indexes changed --- need to reset iterator.
+                    removed_last_time = true;
+                    break;
+                }
+            }
+        }
+    }
+
+    result_vec
+}
+
+fn build_table_by_func(opts: &Options, table: &mut HashMap<Func, HashSet::<(Var, Var)>>, orders: &Vec<(Func, Var, Var)>) {
+    for (func, var1, var2) in orders {
+        let mut order = table.entry(func.clone()).or_insert(HashSet::new());
+        order.insert((var1.clone(), var2.clone()));
     }
 }
 
@@ -150,7 +221,7 @@ fn get_orders(opts: &Options, ast: &AST, current_producer: &Option<Func>,
             // cases where it should?
             get_orders(opts, ast, current_producer, orders);
         },
-        AST::For(var, ast, _range) | AST::Vectorize(var, ast, _range) | AST::Parallel(var, ast, _range) => {
+        AST::For(var, ast, _range, _properties) => {
             // insert var.clone() into the vec in the orders map at the current_producer.
             // if current_producer is None use "_top_level".  If orders hashmap doens't
             // have current_producer, then create a new singleton vec for it.

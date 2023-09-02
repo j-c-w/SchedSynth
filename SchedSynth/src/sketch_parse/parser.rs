@@ -24,20 +24,34 @@ pub enum RangeAST {
 pub enum SketchAST { // nodes have nesting, <other stuff>
     Produce(i32, Variable, Box<SketchAST>), // name, contents
     Consume(i32, Variable, Box<SketchAST>), // name, contents
-    For(i32, Variable, Box<SketchAST>, RangeAST), // variable name, sub-contents, optional range
+    For(i32, Variable, Box<SketchAST>, RangeAST, Vec<ASTLoopProperty>), // variable name, sub-contents, optional range
     Assign(i32, Variable), // variable name
     StoreAt(i32, Variable), // variable name
-    Vectorize(i32, Variable, Box<SketchAST>, RangeAST), // variable name, sub-contents, optional range
-    Parallel(i32, Variable, Box<SketchAST>, RangeAST), // variable name, sub-contents, optional range
     Sequence(i32, Vec<SketchAST>), // list of sub-asts
 }
 
+#[derive(Clone)]
+pub enum ASTLoopProperty {
+    Vectorize(),
+    Parallel(),
+    Unroll(i32)
+}
 
 // Trait for SketchAST.
 trait AST {
     fn children(&self) -> Vec<SketchAST>;
     fn node_type(&self) -> String;
     fn size(&self) -> i32;
+}
+
+impl ToString for ASTLoopProperty {
+ fn to_string(&self) -> String {
+        match self {
+            ASTLoopProperty::Vectorize() => "vectorize".to_string(),
+            ASTLoopProperty::Parallel() => "parallel".to_string(),
+            ASTLoopProperty::Unroll(n) => format!("unroll({})", n)
+        }
+    }
 }
 
 impl ToString for Variable {
@@ -62,13 +76,13 @@ impl ToString for SketchAST {
             subelts.to_string()),
             SketchAST::Consume(_, n, subelts) => format!("Consume {} ({})", n.to_string().clone(),
             subelts.to_string()),
-            SketchAST::For(_, n, subelts, range) => format!("For {} in {}: ({})", n.to_string().clone(),
-            range.to_string(), subelts.to_string()),
+            SketchAST::For(_, n, subelts, range, properties) => {
+                let properties_string = 
+                    properties.iter().map(|p| p.to_string()).collect::<Vec<String>>().join(", ");
+                format!("For({}) {} in {}: ({})", properties_string,
+                n.to_string().clone(), range.to_string(), subelts.to_string())
+            },
             SketchAST::Assign(_, n) => format!("{} = ...", n.to_string().clone()),
-            SketchAST::Vectorize(_, n, child, range) => format!("vectorized {} in {}: ({})",
-            n.to_string().clone(), range.to_string(), child.to_string()),
-            SketchAST::Parallel(_, n, child, range) => format!("parallel {} in {}: ({})",
-            n.to_string().clone(), range.to_string(), child.to_string()),
             SketchAST::StoreAt(_, n) => format!("store {} here", n.to_string().clone()),
             SketchAST::Sequence(_, subvars) => format!("Sequence({})", subvars.iter().map(|x|
                     x.to_string()).collect::<Vec<String>>().join(",")),
@@ -89,7 +103,7 @@ impl AST for SketchAST {
                 res.push(children.as_ref().clone());
                 res
             },
-            SketchAST::For(_nest, _n, children, _range) => {
+            SketchAST::For(_nest, _n, children, _range, _properties) => {
                 let mut res = Vec::new();
                 res.push(children.as_ref().clone());
                 res
@@ -98,16 +112,6 @@ impl AST for SketchAST {
                 let res = Vec::new();
                 res
             },
-            SketchAST::Vectorize(_nest, _n, children, _range) => {
-                let mut res = Vec::new();
-                res.push(children.as_ref().clone());
-                res
-            }
-            SketchAST::Parallel(_nest, _n, children, _range) => {
-                let mut res = Vec::new();
-                res.push(children.as_ref().clone());
-                res
-            }
             SketchAST::StoreAt(_, n) => {
                 vec![]
             }
@@ -119,10 +123,8 @@ impl AST for SketchAST {
         match self {
             SketchAST::Produce(_, _, _) => "Produce".into(),
             SketchAST::Consume(_, _, _) => "Consume".into(),
-            SketchAST::For(_, _, _, _) => "For".into(),
+            SketchAST::For(_, _, _, _, _) => "For".into(),
             SketchAST::Assign(_, _) => "Assign".into(),
-            SketchAST::Vectorize(_, _, _, _) => "Vectorize".into(),
-            SketchAST::Parallel(_, _, _, _) => "Parallel".into(),
             SketchAST::StoreAt(_, _) => "StoreAt".into(),
             SketchAST::Sequence(_, _) => "Sequence".into(),
         }
@@ -132,11 +134,9 @@ impl AST for SketchAST {
         match self {
             SketchAST::Produce(_, _, child) => child.size() + 1,
             SketchAST::Consume(_, _, child) => child.size() + 1,
-            SketchAST::For(_, _, child, _) => child.size() + 1,
+            SketchAST::For(_, _, child, _, _) => child.size() + 1,
             SketchAST::Assign(_, _) => 1,
             SketchAST::Sequence(_, children) => children.iter().map(|child| child.size()).sum(),
-            SketchAST::Vectorize(_, _, child, _) => child.size() + 1,
-            SketchAST::Parallel(_, _, child, _) => child.size() + 1,
             SketchAST::StoreAt(_, _) => 1,
         }
     }
@@ -290,7 +290,7 @@ fn process(opts: &Options, nesting_depth: i32, sequence: Pair<Rule>) -> SketchAS
             // Parser produces un-nested code --- nest it later.
             SketchAST::For(nesting_depth, ident,
                 Box::new(SketchAST::Sequence(nesting_depth, Vec::new())),
-                range)
+                range, Vec::new())
         },
         Rule::assignment => {
             if opts.debug_parser {
@@ -322,9 +322,9 @@ fn process(opts: &Options, nesting_depth: i32, sequence: Pair<Rule>) -> SketchAS
             let ident = process_ident(opts, inner.next().unwrap());
             let range = process_range(opts, inner.next().unwrap());
 
-            SketchAST::Vectorize(nesting_depth, ident,
+            SketchAST::For(nesting_depth, ident,
                 Box::new(SketchAST::Sequence(nesting_depth, Vec::new())),
-                range)
+                range, vec![ASTLoopProperty::Vectorize()])
         }
         Rule::parallel => {
             if opts.debug_parser {
@@ -337,9 +337,9 @@ fn process(opts: &Options, nesting_depth: i32, sequence: Pair<Rule>) -> SketchAS
             let ident = process_ident(opts, inner.next().unwrap());
             let range = process_range(opts, inner.next().unwrap());
 
-            SketchAST::Parallel(nesting_depth, ident,
+            SketchAST::For(nesting_depth, ident,
                 Box::new(SketchAST::Sequence(nesting_depth, Vec::new())),
-                range)
+                range, vec![ASTLoopProperty::Parallel()])
         }
         Rule::EOI => {
             if opts.debug_parser {
@@ -364,11 +364,9 @@ fn get_nest_depth(v: &SketchAST) -> &i32 {
     match v {
         SketchAST::Produce(n, _, _) => n,
         SketchAST::Consume(n, _, _) => n,
-        SketchAST::For(n, _, _, _) => n,
+        SketchAST::For(n, _, _, _, _) => n,
         SketchAST::Assign(n, _) => n,
         SketchAST::Sequence(n, _) => n,
-        SketchAST::Vectorize(n, _, _, _) => n,
-        SketchAST::Parallel(n, _, _, _) => n,
         SketchAST::StoreAt(n, _) => n,
     }
 }
@@ -387,18 +385,10 @@ fn set_nest(v: &SketchAST, nest: SketchAST) -> SketchAST {
                 assert!(current_nest.size() == 0); // check we aren't deleting anything
                 SketchAST::Consume(n.clone(), var.clone(), Box::new(nest))
             },
-            SketchAST::For(n, var, current_nest, range) => {
+            SketchAST::For(n, var, current_nest, range, properties) => {
                 assert!(current_nest.size() == 0); // check we aren't deleting anything
-                SketchAST::For(n.clone(), var.clone(), Box::new(nest), range.clone())
+                SketchAST::For(n.clone(), var.clone(), Box::new(nest), range.clone(), properties.clone())
             }
-            SketchAST::Vectorize(n, var, current_nest, range) => {
-                assert!(current_nest.size() == 0); // check we aren't deleting anything
-                SketchAST::Vectorize(n.clone(), var.clone(), Box::new(nest), range.clone())
-            },
-            SketchAST::Parallel(n, var, current_nest, range) => {
-                assert!(current_nest.size() == 0); // check we aren't deleting anything
-                SketchAST::Parallel(n.clone(), var.clone(), Box::new(nest), range.clone())
-            },
             SketchAST::StoreAt(_n, _var) => panic!("Can't set nest to a store"),
             SketchAST::Assign(_n, _var) => panic!("Can't set nest to an assign"),
             SketchAST::Sequence(_n, _nest) => panic!("Can't set nest to a sequence"),
