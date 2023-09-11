@@ -1,12 +1,12 @@
 produce relu:                                       
-  parallel c.co:                                    
+  parallel co:                                    
     parallel n:                                     
       parallel y:                                   
-        for x.xo:      
-          produce conv:                             
-            conv(...) = ...
+        for xo:      
           consume conv:
-            unrolled(4) x.xi:
-              unrolled c.ci.ci:
-                vectorized c.ci.v3:
+            unrolled xi 4:
+              unrolled ci2 4:
+                vectorized ci3:
+                  produce conv:                             
+                    conv(...) = ...
                   relu(...) = ...

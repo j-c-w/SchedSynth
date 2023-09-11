@@ -21,7 +21,7 @@ vectorize = { "vectorized" ~ whitespace_plus ~ ident ~ optional_range ~ colon }
 parallel = { "parallel" ~ whitespace_plus ~ ident ~ optional_range ~ colon }
 assignment = {ident ~ "(...) = ..."}
 store_at = { "store" ~ whitespace_plus ~ ident }
-unroll = { "unroll" ~ whitespace_plus ~ ident ~ whitespace_plus ~ number ~ whitespace_plus ~ colon}
+unroll = { "unrolled" ~ whitespace_plus ~ ident ~ optional_range ~ whitespace_plus ~ number ~ whitespace_star ~ colon}
 
 whitespace = { " " | "\t" }
 whitespace_plus = { whitespace+ }

@@ -2,7 +2,7 @@ alpha = { 'a'..'z' | 'A'..'Z' | "." | "_" }
 digit = { '0'..'9' }
 factor = {digit+}
 
-ident = { alpha+ }
+ident = { (alpha|digit)+ }
 whitespace = { " " | "\t" }
 whitespace_plus = { whitespace+ }
 whitespace_star = { whitespace* }

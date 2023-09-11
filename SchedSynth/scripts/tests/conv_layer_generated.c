@@ -10,7 +10,7 @@ int main() {
 			int tile_h = 4;
 
 	Var x("x"), y("y"), c("c"), n("n"), z("z");
-	Var co("co"), ci("ci"), xo("xo"), xi("xi"), yo("yo"), yi("yi"), t("t");
+	Var co("co"), ci("ci"), ci2("ci2"), ci3("ci3"), xo("xo"), xi("xi"), yo("yo"), yi("yi"), t("t");
 
 	Func conv("conv");
 	Func input("input");

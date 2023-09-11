@@ -1,4 +1,9 @@
 use crate::options::options::Options;
+use crate::gen::target::Target;
+use crate::gen::target::TargetGenerate;
+use crate::gen::target::TargetLower;
+use crate::ast::ast::*;
+use crate::reshape::reshape::Reshape;
 
 #[derive(Clone)]
 pub struct HFunc {
@@ -28,6 +33,123 @@ pub enum HalideCommand {
 #[derive(Clone)]
 pub struct HalideProgram {
     pub commands: Vec<HalideCommand>
+}
+
+impl TargetGenerate<HalideCommand> for HalideProgram {
+    fn generate(&self) -> String {
+        self.to_string()
+    }
+
+    fn extend(&self, commands: Vec<HalideCommand>) {
+        self.commands.append(commands)
+    }
+}
+
+impl TargetLower<HalideCommand> for HalideProgram {
+    // Conert the the pairs of func and variable into
+    // vectorize halide commands.
+    fn to_vectorize(commands: Vec<(Func, Var)>) -> Vec<HalideCommand> {
+        // the first far is the func, and the second var is the variable
+        // to vectorize (hvar).
+        let mut halide_commands = Vec::new();
+        for (func, hvar) in commands {
+            let hfunc = HFunc { name: func.name, update: func.update };
+            let hhvar = HVar { name: hvar.name };
+            halide_commands.push(HalideCommand::Vectorize(hfunc, hhvar));
+        }
+        halide_commands
+    }
+
+    fn to_parallel(commands: Vec<(Func, Var)>) -> Vec<HalideCommand> {
+        let mut halide_commands = Vec::new();
+        for (func, hvar) in commands {
+            let hfunc = HFunc { name: func.name, update: func.update };
+            let hhvar = HVar { name: hvar.name };
+            halide_commands.push(HalideCommand::Parallel(hfunc, hhvar));
+        }
+        halide_commands
+    }
+
+    fn to_store_at(commands: Vec<(Func, Func, Var)>) -> Vec<HalideCommand> {
+        let mut halide_commands = Vec::new();
+        for (func, func2, hvar) in commands {
+            let hfunc = HFunc { name: func.name, update: func.update };
+            let hfunc2 = HFunc { name: func2.name, update: func2.update };
+            let hhvar = HVar { name: hvar.name };
+            halide_commands.push(HalideCommand::StoreAt(hfunc, hfunc2, hhvar));
+        }
+        halide_commands
+    }
+
+    // turn the var var var into this:
+    // ComputeAt(HFunc, HFunc, HVar) // Compute func at func at varaiable
+    fn to_compute_at(commands: Vec<(Func, Option<Func>, Option<Var>)>) -> Vec<HalideCommand> {
+        let mut halide_commands = Vec::new();
+        for (func, compute_at_func, hvar) in commands {
+            let hfunc = HFunc { name: func.name, update: func.update };
+            match (compute_at_func, hvar) {
+                (Some(compute_at_func), Some(hvar)) => {
+                    let hhvar = HVar { name: hvar.name };
+                    let hcompute_at_func = HFunc { name: compute_at_func.name, update: func.update };
+                    halide_commands.push(HalideCommand::ComputeAt(hfunc, hcompute_at_func, hhvar));
+                },
+                (None, None) => {
+                    // I /think/ that this is only possible this wa.
+                    // Not 100% sure what it means with the var set.
+                    halide_commands.push(HalideCommand::ComputeRoot(hfunc));
+                },
+                (None, Some(v)) => panic!("Unexpected variable {} set when processing compute_root", v),
+                (Some(v), None) => panic!("Unexpected func {} set when processing compute_root", v)
+            }
+        }
+        halide_commands
+    }
+
+    // turn the var var var into this:
+    // Reorder(HFunc, HVar, HVar) // Compute func at func at varaiable
+    fn to_reorder(commands: Vec<(Func, Var, Var)>) -> Vec<HalideCommand> {
+        let mut halide_commands = Vec::new();
+        for (func, compute_at_func, hvar) in commands {
+            let hfunc = HFunc { name: func.name, update: func.update };
+            let hvar1 = HVar { name: compute_at_func.name };
+            let hvar2 = HVar { name: hvar.name };
+            halide_commands.push(HalideCommand::Reorder(hfunc, (hvar1, hvar2)));
+        }
+        halide_commands
+    }
+
+    // the internal finder returns Reshape::Split(Var, (Var, Var)) which needs to be converted
+    // into HalideCommand::Split and Reshape::Fuse((Var, Var), Var) which needs to be converted
+    // into HalideCommand::Fuse
+    fn to_reshape(commands: &Vec<Reshape>) -> Vec<HalideCommand> {
+        let mut halide_commands = Vec::new();
+        for command in commands {
+            match command {
+                // TODO -- figure out how to get the producer name into here.
+                Reshape::Split(func, var, (var1, var2), factor) => {
+                    let hfunc = HFunc { name: func.name.clone(), update: func.update.clone() };
+                    let hvar = HVar { name: var.name.clone() };
+                    let hvar1 = HVar { name: var1.name.clone() };
+                    let hvar2 = HVar { name: var2.name.clone() };
+                    halide_commands.push(HalideCommand::Split(hfunc, hvar, (hvar1, hvar2), factor.clone()));
+                },
+                Reshape::Fuse(func, (var1, var2), var) => {
+                    let hfunc = HFunc { name: func.name.clone(), update: func.update.clone() };
+                    let hvar = HVar { name: var.name.clone() };
+                    let hvar1 = HVar { name: var1.name.clone() };
+                    let hvar2 = HVar { name: var2.name.clone() };
+                    halide_commands.push(HalideCommand::Fuse(hfunc, (hvar1, hvar2), hvar));
+                },
+                Reshape::Reorder(func, (var1, var2)) => {
+                    let hfunc = HFunc { name: func.name.clone(), update: func.update.clone() };
+                    let hvar1 = HVar { name: var1.name.clone() };
+                    let hvar2 = HVar { name: var2.name.clone() };
+                    halide_commands.push(HalideCommand::Reorder(hfunc, (hvar1, hvar2)));
+                },
+            }
+        }
+        halide_commands
+    }
 }
 
 impl ToString for HalideProgram {
@@ -91,3 +213,4 @@ impl ToString for HalideCommand {
 pub fn generate(_opts: &Options, program: HalideProgram) -> String {
     program.commands.iter().map(|command| command.to_string()).collect::<Vec<String>>().join("\n") + "\n"
 }
+

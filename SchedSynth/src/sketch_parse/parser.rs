@@ -155,6 +155,17 @@ fn process_ident(opts: &Options, sequence: Pair<Rule>) -> Variable {
     }
 }
 
+fn process_number(_opts: &Options, num: Pair<Rule>) -> i32 {
+    match num.as_rule() {
+        Rule::number => {
+            let num_str = num.as_str();
+            let num_val: i32 = num_str.parse().unwrap();
+            num_val
+        },
+        _ => panic!("not a number {}", num.as_str())
+    }
+}
+
 fn process_range(opts: &Options, sequence: Pair<Rule>) -> RangeAST {
     match sequence.as_rule() {
         Rule::optional_range => {
@@ -340,6 +351,23 @@ fn process(opts: &Options, nesting_depth: i32, sequence: Pair<Rule>) -> SketchAS
             SketchAST::For(nesting_depth, ident,
                 Box::new(SketchAST::Sequence(nesting_depth, Vec::new())),
                 range, vec![ASTLoopProperty::Parallel()])
+        }
+        Rule::unroll => {
+            if opts.debug_parser {
+                println!("Got an unroll");
+            }
+
+            let mut inner = sequence.into_inner();
+            let _ = inner.next(); // whitespace token
+            // let _ = inner.next(); // whitespace
+            let ident = process_ident(opts, inner.next().unwrap());
+            let range = process_range(opts, inner.next().unwrap());
+            let _ = inner.next(); // whitespace token
+            let amount = process_number(opts, inner.next().unwrap());
+
+            SketchAST::For(nesting_depth, ident,
+                Box::new(SketchAST::Sequence(nesting_depth, Vec::new())),
+                range, vec![ASTLoopProperty::Unroll(amount)])
         }
         Rule::EOI => {
             if opts.debug_parser {

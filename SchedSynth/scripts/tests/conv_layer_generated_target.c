@@ -10,7 +10,7 @@ int main() {
 			int tile_h = 4;
 
 	Var x("x"), y("y"), c("c"), n("n"), z("z");
-	Var co("co"), ci("ci"), xo("xo"), xi("xi"), yo("yo"), yi("yi"), t("t");
+	Var co("co"), ci("ci"), ci2("ci2"), ci3("ci3"), xo("xo"), xi("xi"), yo("yo"), yi("yi"), t("t");
 
 	Func conv("conv");
 	Func input("input");
@@ -30,6 +30,19 @@ int main() {
 	relu(c, x, y, n) = max(0, conv(c, x, y, n));
 
 
+relu.split(c, co, ci, 16);
+relu.split(x, xo, xi, 4);
+relu.split(ci, ci2, ci3, 4);
+relu.reorder(xi, co);
+relu.reorder(xo, co);
+relu.reorder(y, co);
+relu.reorder(n, co);
+conv.compute_at(relu, ci3);
+relu.compute_root();
+relu.vectorize(ci3);
+relu.parallel(y);
+relu.parallel(n);
+relu.parallel(co);
 	/* filter.in() */
 	/* 	.compute_at(conv, r.x) */
 	/* 	.vectorize(_0, vec) */

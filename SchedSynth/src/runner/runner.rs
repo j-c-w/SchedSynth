@@ -5,6 +5,7 @@ use std::fs::File;
 use std::time::Instant;
 use std::io::Read;
 use std::io::Write;
+use crate::gen::target::Target;
 
 #[derive(Clone)]
 pub struct ExecutionResult {
@@ -12,11 +13,17 @@ pub struct ExecutionResult {
     pub exit_status: i32,
 }
 
-pub fn best_schedule(opts: &Options, schedules: Vec<HalideProgram>) -> HalideProgram {
-    let string_schedules = schedules.iter().map(|x| x.to_string()).collect();
-    let rankings = evaluate_options(opts, string_schedules);
-    let best_program = get_best_ranking(&rankings);
-    schedules[best_program as usize].clone()
+pub fn best_schedule<T>(opts: &Options, schedules: Vec<dyn Target<T>>) -> dyn Target<T> {
+    if schedules.len() == 0 {
+        panic!("Trying to get best schedule form empty list");
+    } else if schedules.len() == 1 {
+        return schedules[0].clone();
+    } else {
+        let string_schedules = schedules.iter().map(|x| x.generate()).collect();
+        let rankings = evaluate_options(opts, string_schedules);
+        let best_program = get_best_ranking(&rankings);
+        schedules[best_program as usize].clone()
+    }
 }
 
 // Get the best ranking execution result
@@ -69,7 +76,7 @@ fn create_runnable(opts: &Options, template_file: String, target_file: String, s
     let mut template_contents = String::new();
     let target_file = format!("{}/{}", opts.execution_dir.clone(), target_file);
 
-    let mut file = File::open(&template_file).expect("Unable to open template file");
+    let mut file = File::open(&template_file).expect(format!("Unable to open template file {}.  Use --halide-program to specify a template that can be filled by the scheduler", template_file).as_str());
     file.read_to_string(&mut template_contents).expect("Unable to read template file");
     let new_contents = template_contents.replace("SCHED_CONTENT", &schedule);
     let mut file = File::create(&target_file).expect("Unable to create target file");
