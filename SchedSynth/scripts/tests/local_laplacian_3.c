@@ -21,7 +21,7 @@ int main(int argc, char **argv) {
 	producer.store_at(consumer, yo)
 	.compute_at(consumer, yi)
 	.fold_storage(y, 4)
-	.vectorize(x, 8)
+	.vectorize(x, 8);
 
 	// target
 	producer.print_loop_nest();

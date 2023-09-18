@@ -4,25 +4,25 @@
 using namespace Halide;
 
 int main(int argc, char **argv) {
-	Var x("x"), y("y");
+	Var x("x"), y("y"), c("c");
 
 	Func producer("producer"), consumer("consumer");
 
 	producer(x, y) = sin(x * y);
-	consumer(x, y) = (producer(x, y) + producer(x, y + 1) + producer(x + 1, y) + producer(x + 1, y + 1)) / 4;
+	consumer(x, y, c) = (producer(x, y) + producer(x, y + 1) + producer(x + 1, y) + producer(x + 1, y + 1)) / 4;
 
 	// Oroginal
-	producer.print_loop_nest();
+	consumer.print_loop_nest();
 	printf("===============\n");
 	// schedule
 	Var yo, yi;
 
-	consumer.compute_at(output_compute_at)
+	consumer.compute_at(producer, x)
 		.vectorize(x)
 		.unroll(y)
 		.reorder(c, x, y)
 		.unroll(c);
 
 	// target
-	producer.print_loop_nest();
+	consumer.print_loop_nest();
 }

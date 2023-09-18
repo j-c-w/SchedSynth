@@ -9,7 +9,7 @@ int main(int argc, char **argv) {
 	Func producer("producer"), consumer("consumer");
 
 	producer(x, y) = sin(x * y);
-	consumer(x, y) = (producer(x, y) + producer(x, y + 1) + producer(x + 1, y) + producer(x + 1, y + 1)) / 4;
+	consumer(x, y, c) = (producer(x, y) + producer(x, y + 1) + producer(x + 1, y) + producer(x + 1, y + 1)) / 4;
 
 	// Oroginal
 	consumer.print_loop_nest();
@@ -17,9 +17,7 @@ int main(int argc, char **argv) {
 	// schedule
 	Var yo, yi;
 
-	consumer.reorder(c, x, y).split(y, yo, yi, 64).parallel(yo).vectorize(x, 8);
-	producer.store_at(consumer, yi);
-	producer.compute_at(consumer, yo);
+	SCHED_CONTENT
 
 	// target
 	consumer.print_loop_nest();

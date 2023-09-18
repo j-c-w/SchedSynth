@@ -1,0 +1,5 @@
+produce consumer:
+  unrolled y:
+    vectorized x:
+      unrolled c:
+        consumer(...) = ...
