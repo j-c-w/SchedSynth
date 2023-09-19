@@ -22,9 +22,8 @@ fn main() {
     let reshapes = sketch_parse::splits_parser::parse(&options, &ast_original, &options.reshapes);
 
     let synthed_option = synth::synth::synthesize_from_sketch(&options, &ast_original, &ast_target, &reshapes);
-    let output = gen::halide::generate(&options, synthed_option);
 
-    std::fs::write(options.dest, output.clone()).expect("File write failed");
+    std::fs::write(options.dest, synthed_option.clone()).expect("File write failed");
 
-    println!("Output: {}", output);
+    println!("Output: {}", synthed_option);
 }

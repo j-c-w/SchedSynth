@@ -1,4 +1,5 @@
 use clap::{App, Arg};
+use crate::gen::target::Backend;
 
 pub struct Options {
 	// Keep track of whether struct is initilzied --- apparently
@@ -18,6 +19,8 @@ pub struct Options {
     pub halide_dir: String,
 
     pub halide_program: String,
+
+    pub backend: Backend,
 
 	// debug flags
 	pub debug_parser: bool,
@@ -133,6 +136,8 @@ pub fn parse_options() -> Options {
         target: args.value_of("target").unwrap().into(),
         reshapes: args.value_of("reshapes").unwrap().into(),
         dest: args.value_of("dest").unwrap().into(),
+
+        backend: Backend::Halide(),
 
         execution_dir: args.value_of("execution_dir").unwrap().into(),
         halide_dir: args.value_of("halide_dir").unwrap().into(),

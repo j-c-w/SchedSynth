@@ -1,5 +1,4 @@
 use crate::options::options::Options;
-use crate::gen::halide::HalideProgram;
 use std::process::Command;
 use std::fs::File;
 use std::time::Instant;
@@ -13,7 +12,7 @@ pub struct ExecutionResult {
     pub exit_status: i32,
 }
 
-pub fn best_schedule<T>(opts: &Options, schedules: Vec<dyn Target<T>>) -> dyn Target<T> {
+pub fn best_schedule<T: Target>(opts: &Options, schedules: Vec<T>) -> T {
     if schedules.len() == 0 {
         panic!("Trying to get best schedule form empty list");
     } else if schedules.len() == 1 {
