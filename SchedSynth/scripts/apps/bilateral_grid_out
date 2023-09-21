@@ -1,0 +1,35 @@
+produce blurz:
+  for y:
+    consume histogram:
+      for x.x:
+        vectorized x.v2 in [0, 7]:
+          for z:
+            unrolled c:
+              blurz(...) = ...
+produce histogram:
+  for c:
+    for z:
+      for y:
+        for x:
+          histogram(...) = ...
+  for y:
+    for x:
+      for r10 in [0, 7]:
+        for r10 in [0, 7]:
+          unrolled c:
+            histogram(...) = ...
+produce blurx:
+  parallel y:
+    consume blurz:
+      for z:
+        for x.x:
+          vectorized x.v5 in [0, 7]:
+            unrolled c:
+              blurx(...) = ...
+produce bilateral_grid:
+  parallel y.y:
+    consume blury:
+      for y.v7 in [0, 7]:
+        for x.x:
+          vectorized x.v8 in [0, 7]:
+            bilateral_grid(...) = ...

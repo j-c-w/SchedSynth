@@ -1,0 +1,8 @@
+produce blur_x:
+  for y:
+    for x:
+      blur_x(...) = ...
+produce blur_y:
+  for y:
+    for x:
+      blur_y(...) = ...

@@ -1,0 +1,17 @@
+produce gray:
+  for y:
+    for x:
+      gray(...) = ...           
+produce blur_y:
+  for y:
+    for x:
+      blur_y(...) = ...
+produce ratio:
+  for y:
+    for x:
+      ratio(...) = ...
+produce output:
+  for c:
+    for y:
+      for x:
+        output(...) = ...

@@ -1,0 +1,38 @@
+produce blurz:
+  for c:
+    for z:
+      for y:
+        for x:
+          consume histogram:
+            blurz(...) = ...
+produce histogram:
+  for c:
+    for z:
+      for y:
+        for x:
+          histogram(...) = ...
+  for c:
+    for y:
+      for x:
+        for r10 in [0, 7]:
+          for r10 in [0, 7]:
+            histogram(...) = ...
+produce blurx:
+  for c:
+    for z:
+      for y:
+        for x:
+          consume histogram:
+            blurx(...) = ...
+produce blury:
+  for c:
+    for z:
+      for y:
+        for x:
+          consume histogram:
+            blury(...) = ...
+produce bilateral_grid:
+  for y:
+    for x:
+      consume histogram:
+        bilateral_grid(...) = ...

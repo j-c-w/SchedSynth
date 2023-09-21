@@ -1,0 +1,17 @@
+produce blur_x:
+  for y:
+    for x.x:
+      vectorized x.v1 in [0, 15]:
+        blur_x(...) = ...
+produce blur_y:
+  parallel y.y:
+    store blur_x:
+      for y.yi. in [-2, 31]:
+        for x.x:
+          produce blur_x:
+            for x.x:
+              vectorized x.v1 in [0, 15]:
+                blur_x(...) = ...
+          consume blur_x:
+            vectorized x.v0 in [0, 15]:
+              blur_y(...) = ...
