@@ -237,6 +237,7 @@ fn get_loops_with_property(_opts: &Options, ast: &AST, current_producer: &Option
             // check if any of properties is in for_properties
             let mut has_property = false;
             for property in properties {
+                TODO -- need to do fuzzy match if property 
                 if for_properties.contains(property) {
                     has_property = true;
                     break;
@@ -268,6 +269,11 @@ fn get_loops_with_property(_opts: &Options, ast: &AST, current_producer: &Option
 // Gets a list of the the vectorize commands required.
 pub fn get_parallel(opts: &Options, ast: &AST) -> Vec<(Func, Var)> {
     get_loops_with_property(opts, ast, &None, &vec![Property::Parallel()])
+}
+//
+// Gets a list of the the vectorize commands required.
+pub fn get_unroll(opts: &Options, ast: &AST) -> Vec<(Func, Var)> {
+    get_loops_with_property(opts, ast, &None, &vec![Property::Unroll(0)])
 }
 
 // Gets a list of the the vectorize commands required.

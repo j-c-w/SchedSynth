@@ -28,10 +28,17 @@ impl TargetGenerate for BackendInstance {
 }
 
 impl TargetLower for BackendInstance {
- fn to_vectorize(&mut self, commands: Vec<(Func, Var)>) {
+    fn to_vectorize(&mut self, commands: Vec<(Func, Var)>) {
         match self {
             BackendInstance::Halide(hp) => hp.to_vectorize(commands),
             BackendInstance::Exo(ep) => ep.to_vectorize(commands)
+        }
+    }
+
+    fn to_unroll(&mut self, commands: Vec<(Func, Var, i32)>) {
+        match self {
+            BackendInstance::Halide(hp) => hp.to_unroll(commands),
+            BackendInstance::Exo(ep) => ep.to_unroll(commands)
         }
     }
 
@@ -88,6 +95,7 @@ pub trait TargetGenerate {
 
 pub trait TargetLower {
     fn to_vectorize(&mut self, commands: Vec<(Func, Var)>);
+    fn to_unroll(&mut self, commands: Vec<(Func, Var, i32)>);
     fn to_parallel(&mut self, commands: Vec<(Func, Var)>);
     fn to_store_at(&mut self, commands: Vec<(Func, Func, Var)>);
     fn to_compute_at(&mut self, commands: Vec<(Func, Option<Func>, Option<Var>)>);

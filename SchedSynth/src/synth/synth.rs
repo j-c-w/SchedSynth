@@ -18,6 +18,7 @@ fn synthesize_candidates(opts: &Options, backend_type: Backend, source: &AST, ta
     backend.to_store_at(crate::ast::ast::get_store_at(opts, target));
     backend.to_vectorize(crate::ast::ast::get_vectorized(opts, target));
     backend.to_parallel(crate::ast::ast::get_parallel(opts, target));
+    backend.to_unroll(crate::ast::ast::get_unroll(opts, target));
 
     let candidates =  vec![
         backend

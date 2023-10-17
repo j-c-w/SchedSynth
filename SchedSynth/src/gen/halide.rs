@@ -67,6 +67,16 @@ impl TargetLower for HalideProgram {
         self.commands.append(&mut halide_commands)
     }
 
+    fn to_unroll(&mut self, commands: Vec<(Func, Var, factor)>) {
+        let mut halide_commands = Vec::new();
+        for (func, hvar, factor) in commands {
+            let hfunc = HFunc { name: func.name, update: func.update };
+            let hhvar = HVar { name: hvar.name };
+            halide_commands.push(HalideCommand::Unroll(hfunc, hhvar, factor));
+        }
+        self.commands.append(&mut halide_commands)
+    }
+
     fn to_store_at(&mut self, commands: Vec<(Func, Func, Var)>) {
         let mut halide_commands = Vec::new();
         for (func, func2, hvar) in commands {
@@ -184,7 +194,7 @@ impl ToString for HalideCommand {
             var.to_string()),
             HalideCommand::Parallel(func, var) => format!("{}.parallel({});", func.to_string(),
             var.to_string()),
-            HalideCommand::Unroll(func, factor) => format!("{}.Unroll({});", func.to_string(), factor),
+            HalideCommand::Unroll(func, factor) => format!("{}.unroll({});", func.to_string(), factor),
             HalideCommand::Tile() => String::from("X.tile()"),
             HalideCommand::ComputeAt(func1, func2, var) => {
                 format!("{}.compute_at({}, {});", func1.to_string(), func2.to_string(), var.to_string())
