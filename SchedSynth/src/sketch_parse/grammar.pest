@@ -14,12 +14,12 @@ indent_nest = { indent* }
 
 optional_range = { ( range)? }
 
-produce = { "produce" ~ whitespace_plus ~ ident ~ colon }
-consume = { "consume" ~ whitespace_plus ~ ident ~ colon }
+produce = { "def" ~ whitespace_plus ~ ident ~ colon }
+consume = { "compute" ~ whitespace_plus ~ ident}
 pfor = {"for" ~ whitespace_plus ~ ident ~ optional_range ~ colon }
 vectorize = { "vectorized" ~ whitespace_plus ~ ident ~ optional_range ~ colon }
 parallel = { "parallel" ~ whitespace_plus ~ ident ~ optional_range ~ colon }
-assignment = {ident ~ "(...) = ..."}
+assignment = { "compute" }
 store_at = { "store" ~ whitespace_plus ~ ident }
 unroll = { "unrolled" ~ whitespace_plus ~ ident ~ optional_range ~ whitespace_plus ~ number ~ whitespace_star ~ colon}
 

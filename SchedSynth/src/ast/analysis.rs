@@ -13,8 +13,8 @@ fn range_table_for_internal(opts: &Options, ast: &AST, table: &mut HashMap<Var, 
         AST::Produce(_var, ast) => {
             range_table_for_internal(opts, ast, table)
         },
-        AST::Consume(_var, ast) => {
-            range_table_for_internal(opts, ast, table)
+        AST::Consume(_var) => {
+            ()
         },
         AST::For(var, ast, range, properties) => {
             table.insert(var.clone(), range.clone());
@@ -48,8 +48,8 @@ fn func_table_internal(opts: &Options, ast: &AST, current_producer: &Option<Func
         AST::Produce(var, body) => {
             func_table_internal(opts, body, &Some(var.clone()), table);
         },
-        AST::Consume(_var, body) => {
-            func_table_internal(opts, body, current_producer, table);
+        AST::Consume(_var) => {
+			// nothing
         },
         AST::For(var, body, _, _properties) => {
             // Note that this probably isn't the binding order we'd really

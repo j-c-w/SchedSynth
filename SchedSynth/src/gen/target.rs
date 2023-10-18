@@ -3,6 +3,7 @@ use crate::ast::ast::Var;
 use crate::reshape::reshape::Reshape;
 use crate::gen::halide::HalideProgram;
 use crate::gen::exo::ExoProgram;
+use crate::ast::ast::Property;
 
 #[derive(PartialEq,Clone,Copy)]
 pub enum Backend {
@@ -28,21 +29,21 @@ impl TargetGenerate for BackendInstance {
 }
 
 impl TargetLower for BackendInstance {
-    fn to_vectorize(&mut self, commands: Vec<(Func, Var)>) {
+    fn to_vectorize(&mut self, commands: Vec<(Func, Var, Property)>) {
         match self {
             BackendInstance::Halide(hp) => hp.to_vectorize(commands),
             BackendInstance::Exo(ep) => ep.to_vectorize(commands)
         }
     }
 
-    fn to_unroll(&mut self, commands: Vec<(Func, Var, i32)>) {
+    fn to_unroll(&mut self, commands: Vec<(Func, Var, Property)>) {
         match self {
             BackendInstance::Halide(hp) => hp.to_unroll(commands),
             BackendInstance::Exo(ep) => ep.to_unroll(commands)
         }
     }
 
-    fn to_parallel(&mut self, commands: Vec<(Func, Var)>) {
+    fn to_parallel(&mut self, commands: Vec<(Func, Var, Property)>) {
         match self {
             BackendInstance::Halide(hp) => hp.to_parallel(commands),
             BackendInstance::Exo(ep) => ep.to_parallel(commands)
@@ -94,9 +95,9 @@ pub trait TargetGenerate {
 }
 
 pub trait TargetLower {
-    fn to_vectorize(&mut self, commands: Vec<(Func, Var)>);
-    fn to_unroll(&mut self, commands: Vec<(Func, Var, i32)>);
-    fn to_parallel(&mut self, commands: Vec<(Func, Var)>);
+    fn to_vectorize(&mut self, commands: Vec<(Func, Var, Property)>);
+    fn to_unroll(&mut self, commands: Vec<(Func, Var, Property)>);
+    fn to_parallel(&mut self, commands: Vec<(Func, Var, Property)>);
     fn to_store_at(&mut self, commands: Vec<(Func, Func, Var)>);
     fn to_compute_at(&mut self, commands: Vec<(Func, Option<Func>, Option<Var>)>);
     fn to_reorder(&mut self, commands: Vec<(Func, Var, Var)>);

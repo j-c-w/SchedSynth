@@ -3,6 +3,7 @@ use crate::gen::target::TargetLower;
 use crate::gen::target::Target;
 use crate::ast::ast::*;
 use crate::reshape::reshape::Reshape;
+use crate::ast::ast::Property;
 
 #[derive(Clone)]
 pub struct ExoFunc {
@@ -35,9 +36,10 @@ impl TargetGenerate for ExoProgram {
 }
 
 impl TargetLower for ExoProgram {
-    fn to_vectorize(&mut self, commands: Vec<(Func, Var)>) { }
-    fn to_parallel(&mut self, commands: Vec<(Func, Var)>) { }
+    fn to_vectorize(&mut self, commands: Vec<(Func, Var, Property)>) { }
+    fn to_parallel(&mut self, commands: Vec<(Func, Var, Property)>) { }
     fn to_store_at(&mut self, commands: Vec<(Func, Func, Var)>) { }
+    fn to_unroll(&mut self, commands: Vec<(Func, Var, Property)>) { }
     fn to_compute_at(&mut self, commands: Vec<(Func, Option<Func>, Option<Var>)>) { }
     fn to_reorder(&mut self, commands: Vec<(Func, Var, Var)>) { }
     fn to_reshape(&mut self, commands: &Vec<Reshape>) { }

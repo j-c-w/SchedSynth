@@ -1,9 +1,9 @@
-produce producer:
+def producer:
   for a:
     for b:
-      producer(...) = ...
-produce consumer:
+      compute
+def consumer:
   for z:
     for y:
       for x:
-        consumer(...) = ...
+        compute

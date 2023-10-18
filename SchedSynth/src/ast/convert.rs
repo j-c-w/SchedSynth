@@ -59,7 +59,7 @@ impl fmt::Display for AST {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match *self {
             AST::Produce(ref var, ref ast) => write!(f, "produce {} in ({})", var, ast),
-            AST::Consume(ref var, ref ast) => write!(f, "consume {} in ({})", var, ast),
+            AST::Consume(ref var) => write!(f, "consume {}", var),
             AST::For(ref var, ref ast, ref range, ref properties) => {
                 let property_string = 
                     properties.iter().map(|p| p.to_string()).collect::<Vec<String>>().join(", ");
@@ -122,8 +122,8 @@ pub fn ast_from_sketch_ast(input: SketchAST) -> AST {
         SketchAST::Produce(_nesting, var, ast) => {
             AST::Produce(variable_to_func(var), Box::new(ast_from_sketch_ast(*ast)))
         },
-        SketchAST::Consume(_nesting, var, ast) => {
-            AST::Consume(variable_to_func(var), Box::new(ast_from_sketch_ast(*ast)))
+        SketchAST::Consume(_nesting, var) => {
+            AST::Consume(variable_to_func(var))
         },
         SketchAST::For(_nesting, var, ast, range, properties) => {
             AST::For(variable_to_var(var), Box::new(ast_from_sketch_ast(*ast)), ast_from_range(range), properties_from_loop_properties(properties))

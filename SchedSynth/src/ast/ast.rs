@@ -2,6 +2,7 @@ use crate::options::options::Options;
 use crate::ast::reorder_infer::get_reorders_internal;
 use crate::ast::reorder_infer::insert_reorders_internal;
 use crate::reshape::reshape::Reshape;
+use std::collections::HashSet;
 
 #[derive(Clone,Hash,Eq,PartialEq,Debug)]
 pub struct Var {
@@ -23,7 +24,7 @@ pub enum Range {
 #[derive(Clone)]
 pub enum AST {
     Produce(Func, Box<AST>),
-    Consume(Func, Box<AST>),
+    Consume(Func),
     For(Var, Box<AST>, Range, Vec<Property>),
     Assign(Func),
     StoreAt(Func),
@@ -63,7 +64,7 @@ impl ASTUtils for AST {
     fn get_substruct(&self) -> Option<AST> {
         match self {
             AST::Produce(_, ast) => Some(*ast.clone()),
-            AST::Consume(_, ast) => Some(*ast.clone()),
+            AST::Consume(_) => None,
             AST::For(_, ast, _, _) => Some(*ast.clone()),
             AST::Sequence(asts) => {
                 if asts.len() == 1 {
@@ -112,8 +113,8 @@ pub fn get_store_at_internal(opts: &Options, parent_variable: &Option<&Var>, ast
         AST::Produce(func, ast) => {
             get_store_at_internal(opts, parent_variable, ast)
         },
-        AST::Consume(func, ast) => {
-            get_store_at_internal(opts, parent_variable, ast)
+        AST::Consume(func) => {
+            vec![]
         },
         AST::For(var, ast, range, properties) => {
             get_store_at_internal(opts, &Some(&var), ast)
@@ -142,7 +143,30 @@ pub fn get_store_at_internal(opts: &Options, parent_variable: &Option<&Var>, ast
 }
 
 pub fn get_compute_at(opts: &Options, ast: &AST) -> Vec<(Func, Option<Func>, Option<Var>)> {
-    get_compute_at_internal(opts, ast, &None, &None, &None)
+    let compute_ats = get_compute_at_internal(opts, ast, &None, &None, &None);
+    // Now, filter the compute ats: things that
+    // are computed within functions will not
+    // be computed at root:
+    let mut filtered_compute_ats = Vec::new();
+    let mut added = HashSet::new();
+    for (fun, atfun, atvar) in &compute_ats {
+        match atfun {
+            Some(_) => {
+                filtered_compute_ats.push((fun.clone(), atfun.clone(), atvar.clone()));
+                added.insert(fun.clone());
+            }
+            None => { },
+        }
+    }
+    // Now, go through and add the compute_root parts
+    // for any functions not yet specified.
+    for (fun, atfun, atvar) in &compute_ats {
+        if !added.contains(fun) {
+            filtered_compute_ats.push((fun.clone(), atfun.clone(), atvar.clone()))
+        }
+    }
+
+    filtered_compute_ats
 }
 
 // We are looking for this pattern:
@@ -175,10 +199,8 @@ fn get_compute_at_internal(opts: &Options, ast: &AST, outer_producer: &Option<Fu
             };
             res
         },
-        AST::Consume(_var, ast) => {
-            // although consume comes from compute-at, I don't think it has
-            // anything to do with this.
-            get_compute_at_internal(opts, ast, new_outer, new_inner, last_variable)
+        AST::Consume(_var) => {
+            vec![]
         },
         AST::For(var, subast, _range, _properties) => {
             get_compute_at_internal(opts, subast, new_outer, new_inner, &Some(var.clone()))
@@ -219,7 +241,11 @@ fn get_compute_at_internal(opts: &Options, ast: &AST, outer_producer: &Option<Fu
 }
 
 
-fn get_loops_with_property(_opts: &Options, ast: &AST, current_producer: &Option<Func>, properties: &Vec<Property>) -> Vec<(Func, Var)> {
+// Return all the func/var combinations that
+// have one of the properties in 'properties'.
+// Also return each property that they have.
+fn get_loops_with_property(_opts: &Options, ast: &AST, current_producer: &Option<Func>, properties:
+    &Vec<Property>) -> Vec<(Func, Var, Property)> {
     // recursively walk through the AST and
     // check if there is a vectorize node --- return the producer
     // that contains it, and the variable that is vectorized.
@@ -229,28 +255,30 @@ fn get_loops_with_property(_opts: &Options, ast: &AST, current_producer: &Option
             let producer = Some(var.clone());
             get_loops_with_property(_opts, ast, &producer, properties)
         },
-        AST::Consume(_var, ast) => {
-			// Do not update the producer for a consume
-            get_loops_with_property(_opts, ast, current_producer, properties)
+        AST::Consume(_var) => {
+            Vec::new()
         },
         AST::For(var, ast, _range, for_properties) => {
             // check if any of properties is in for_properties
-            let mut has_property = false;
+            let mut properties_matched = Vec::new();
             for property in properties {
-                TODO -- need to do fuzzy match if property 
-                if for_properties.contains(property) {
-                    has_property = true;
-                    break;
-                }
+                // TODO -- need to do fuzzy match if property 
+                // to check for vectorize regardless of the
+                // actual number.
+                let matching_properties = fuzzy_property_match(for_properties, &property);
+                properties_matched.extend(matching_properties);
             }
             // if it is, we need to vectorize the loop
             let mut sub_results = get_loops_with_property(_opts, ast, current_producer, properties);
             match current_producer {
-                Some(p_name) => if has_property {
-                    sub_results.push((p_name.clone(), var.clone()))
-                }
+                Some(p_name) =>
+                    for property in properties_matched {
+                        sub_results.push((p_name.clone(), var.clone(), property.clone()))
+                    }
                 None => ()
             };
+            // println!("Sub results length is {}", sub_results.len());
+            // println!("properties length is {}", properties.len());
             sub_results
         },
         AST::Assign(_) => Vec::new(),
@@ -267,16 +295,36 @@ fn get_loops_with_property(_opts: &Options, ast: &AST, current_producer: &Option
 }
 
 // Gets a list of the the vectorize commands required.
-pub fn get_parallel(opts: &Options, ast: &AST) -> Vec<(Func, Var)> {
-    get_loops_with_property(opts, ast, &None, &vec![Property::Parallel()])
+pub fn get_parallel(opts: &Options, ast: &AST) -> Vec<(Func, Var, Property)> {
+    let res = get_loops_with_property(opts, ast, &None, &vec![Property::Parallel()]);
+    // println!("Result length is {}", res.len());
+    res
 }
 //
 // Gets a list of the the vectorize commands required.
-pub fn get_unroll(opts: &Options, ast: &AST) -> Vec<(Func, Var)> {
+pub fn get_unroll(opts: &Options, ast: &AST) -> Vec<(Func, Var, Property)> {
     get_loops_with_property(opts, ast, &None, &vec![Property::Unroll(0)])
 }
 
 // Gets a list of the the vectorize commands required.
-pub fn get_vectorized(opts: &Options, ast: &AST) -> Vec<(Func, Var)> {
+pub fn get_vectorized(opts: &Options, ast: &AST) -> Vec<(Func, Var, Property)> {
     get_loops_with_property(opts, ast, &None, &vec![Property::Vectorize()])
+}
+
+// Given a property, do a fuzzy match:
+// meaning parameter-independent, and return
+// the property matched if it exists in
+// the list
+fn fuzzy_property_match(properties: &Vec<Property>, to_match: &Property) -> Vec<Property> {
+    let mut result = Vec::new();
+    for prop in properties {
+        match (prop, to_match) {
+            (Property::Vectorize(), Property::Vectorize()) => result.push(Property::Vectorize()),
+            (Property::Parallel(), Property::Parallel()) => result.push(Property::Parallel()),
+            (Property::Unroll(orig), Property::Unroll(match_runroll)) =>
+                result.push(Property::Unroll(orig.clone())),
+            (_, _) => {},
+        };
+    };
+    result
 }

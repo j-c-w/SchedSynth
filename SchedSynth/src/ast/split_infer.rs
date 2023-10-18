@@ -387,10 +387,8 @@ fn variables(ast: &AST) -> HashSet<Var> {
             // dont include func vars
             vars.extend(variables(&*ast));
         },
-        AST::Consume(_var, ast) => {
+        AST::Consume(_var) => {
             // dont include func vars
-            vars.extend(variables(&*ast));
-            vars.extend(variables(&*ast));
         },
         AST::For(var, ast, _range, _properties) => {
             vars.insert(var.clone());

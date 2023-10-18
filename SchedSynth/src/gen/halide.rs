@@ -4,6 +4,7 @@ use crate::gen::target::TargetLower;
 use crate::gen::target::Target;
 use crate::ast::ast::*;
 use crate::reshape::reshape::Reshape;
+use crate::ast::ast::Property;
 
 #[derive(Clone)]
 pub struct HFunc {
@@ -20,7 +21,7 @@ pub struct HVar {
 pub enum HalideCommand {
     Vectorize(HFunc, HVar), // HFunc to vectorize
     Parallel(HFunc, HVar), // HFunc to vectorize
-    Unroll(HFunc, i32), // HFunc to unroll, unroll factor.
+    Unroll(HFunc, HVar, i32), // HFunc to unroll, unroll factor.
     Tile(), // HFunc to tile, 
     ComputeAt(HFunc, HFunc, HVar), // Compute func at func at varaiable
     StoreAt(HFunc, HFunc, HVar), // store func at variable
@@ -44,11 +45,11 @@ impl TargetGenerate for HalideProgram {
 impl TargetLower for HalideProgram {
     // Conert the the pairs of func and variable into
     // vectorize halide commands.
-    fn to_vectorize(&mut self, commands: Vec<(Func, Var)>) {
+    fn to_vectorize(&mut self, commands: Vec<(Func, Var, Property)>) {
         // the first far is the func, and the second var is the variable
         // to vectorize (hvar).
         let mut halide_commands = Vec::new();
-        for (func, hvar) in commands {
+        for (func, hvar, _) in commands {
             let hfunc = HFunc { name: func.name, update: func.update };
             let hhvar = HVar { name: hvar.name };
             halide_commands.push(HalideCommand::Vectorize(hfunc, hhvar));
@@ -57,9 +58,9 @@ impl TargetLower for HalideProgram {
         self.commands.append(&mut halide_commands);
     }
 
-    fn to_parallel(&mut self, commands: Vec<(Func, Var)>) {
+    fn to_parallel(&mut self, commands: Vec<(Func, Var, Property)>) {
         let mut halide_commands = Vec::new();
-        for (func, hvar) in commands {
+        for (func, hvar, _) in commands {
             let hfunc = HFunc { name: func.name, update: func.update };
             let hhvar = HVar { name: hvar.name };
             halide_commands.push(HalideCommand::Parallel(hfunc, hhvar));
@@ -67,9 +68,13 @@ impl TargetLower for HalideProgram {
         self.commands.append(&mut halide_commands)
     }
 
-    fn to_unroll(&mut self, commands: Vec<(Func, Var, factor)>) {
+    fn to_unroll(&mut self, commands: Vec<(Func, Var, Property)>) {
         let mut halide_commands = Vec::new();
-        for (func, hvar, factor) in commands {
+        for (func, hvar, unroll_property) in commands {
+			let factor = match unroll_property {
+				Property::Unroll(size) => size,
+				_ => panic!("Trying to unroll with non-unroll property!")
+			};
             let hfunc = HFunc { name: func.name, update: func.update };
             let hhvar = HVar { name: hvar.name };
             halide_commands.push(HalideCommand::Unroll(hfunc, hhvar, factor));
@@ -194,7 +199,8 @@ impl ToString for HalideCommand {
             var.to_string()),
             HalideCommand::Parallel(func, var) => format!("{}.parallel({});", func.to_string(),
             var.to_string()),
-            HalideCommand::Unroll(func, factor) => format!("{}.unroll({});", func.to_string(), factor),
+            HalideCommand::Unroll(func, var, factor) => format!("{}.unroll({}, {});", func.to_string(),
+            var.to_string(), factor),
             HalideCommand::Tile() => String::from("X.tile()"),
             HalideCommand::ComputeAt(func1, func2, var) => {
                 format!("{}.compute_at({}, {});", func1.to_string(), func2.to_string(), var.to_string())

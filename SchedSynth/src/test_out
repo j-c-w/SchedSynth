@@ -1,10 +1,11 @@
-produce consumer:
+def producer:
+  for a:
+    for b:
+      compute
+def consumer:
   for x:
     store producer
     for y:
-      produce producer:
-        for a:
-          for b:
-            producer(...) = ...
+      compute producer
       for z:
-        consumer(...) = ...
+        compute

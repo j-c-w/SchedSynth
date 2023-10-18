@@ -23,7 +23,7 @@ pub enum RangeAST {
 #[derive(Clone)]
 pub enum SketchAST { // nodes have nesting, <other stuff>
     Produce(i32, Variable, Box<SketchAST>), // name, contents
-    Consume(i32, Variable, Box<SketchAST>), // name, contents
+    Consume(i32, Variable), // name
     For(i32, Variable, Box<SketchAST>, RangeAST, Vec<ASTLoopProperty>), // variable name, sub-contents, optional range
     Assign(i32, Variable), // variable name
     StoreAt(i32, Variable), // variable name
@@ -74,15 +74,14 @@ impl ToString for SketchAST {
         match self {
             SketchAST::Produce(_, n, subelts) => format!("Produce {} ({})", n.to_string().clone(),
             subelts.to_string()),
-            SketchAST::Consume(_, n, subelts) => format!("Consume {} ({})", n.to_string().clone(),
-            subelts.to_string()),
+            SketchAST::Consume(_, n) => format!("Consume {}", n.to_string().clone()),
             SketchAST::For(_, n, subelts, range, properties) => {
                 let properties_string = 
                     properties.iter().map(|p| p.to_string()).collect::<Vec<String>>().join(", ");
                 format!("For({}) {} in {}: ({})", properties_string,
                 n.to_string().clone(), range.to_string(), subelts.to_string())
             },
-            SketchAST::Assign(_, n) => format!("{} = ...", n.to_string().clone()),
+            SketchAST::Assign(_, n) => format!("compute {}", n.to_string().clone()),
             SketchAST::StoreAt(_, n) => format!("store {} here", n.to_string().clone()),
             SketchAST::Sequence(_, subvars) => format!("Sequence({})", subvars.iter().map(|x|
                     x.to_string()).collect::<Vec<String>>().join(",")),
@@ -98,10 +97,8 @@ impl AST for SketchAST {
                 res.push(children.as_ref().clone());
                 res
             },
-            SketchAST::Consume(_nest, _n, children) => {
-                let mut res = Vec::new();
-                res.push(children.as_ref().clone());
-                res
+            SketchAST::Consume(_nest, _n) => {
+                vec![]
             },
             SketchAST::For(_nest, _n, children, _range, _properties) => {
                 let mut res = Vec::new();
@@ -122,7 +119,7 @@ impl AST for SketchAST {
     fn node_type(&self) -> String {
         match self {
             SketchAST::Produce(_, _, _) => "Produce".into(),
-            SketchAST::Consume(_, _, _) => "Consume".into(),
+            SketchAST::Consume(_, _) => "Consume".into(),
             SketchAST::For(_, _, _, _, _) => "For".into(),
             SketchAST::Assign(_, _) => "Assign".into(),
             SketchAST::StoreAt(_, _) => "StoreAt".into(),
@@ -133,7 +130,7 @@ impl AST for SketchAST {
     fn size(&self) -> i32 {
         match self {
             SketchAST::Produce(_, _, child) => child.size() + 1,
-            SketchAST::Consume(_, _, child) => child.size() + 1,
+            SketchAST::Consume(_, _) => 1,
             SketchAST::For(_, _, child, _, _) => child.size() + 1,
             SketchAST::Assign(_, _) => 1,
             SketchAST::Sequence(_, children) => children.iter().map(|child| child.size()).sum(),
@@ -284,8 +281,7 @@ fn process(opts: &Options, nesting_depth: i32, sequence: Pair<Rule>) -> SketchAS
             let ident = process_ident(opts, inner.next().unwrap());
 
             // Parser produces un-nested code --- nest it later.
-            SketchAST::Consume(nesting_depth, ident,
-                Box::new(SketchAST::Sequence(nesting_depth, Vec::new())))
+            SketchAST::Consume(nesting_depth, ident)
         },
         Rule::pfor => {
             if opts.debug_parser {
@@ -309,9 +305,12 @@ fn process(opts: &Options, nesting_depth: i32, sequence: Pair<Rule>) -> SketchAS
             }
             let mut inner = sequence.into_inner();
 
-            let ident = process_ident(opts, inner.next().unwrap());
+            // This was here in original versions, but now it's infered.
+            // let ident = process_ident(opts, inner.next().unwrap());
 
-            SketchAST::Assign(nesting_depth, ident)
+            // I think the name of the assign isn't actually
+            // used anywhere relevant.
+            SketchAST::Assign(nesting_depth, Variable{ name: "Inferred".to_string() })
         }
         Rule::store_at => {
             if opts.debug_parser {
@@ -391,7 +390,7 @@ fn process(opts: &Options, nesting_depth: i32, sequence: Pair<Rule>) -> SketchAS
 fn get_nest_depth(v: &SketchAST) -> &i32 {
     match v {
         SketchAST::Produce(n, _, _) => n,
-        SketchAST::Consume(n, _, _) => n,
+        SketchAST::Consume(n, _) => n,
         SketchAST::For(n, _, _, _, _) => n,
         SketchAST::Assign(n, _) => n,
         SketchAST::Sequence(n, _) => n,
@@ -409,9 +408,8 @@ fn set_nest(v: &SketchAST, nest: SketchAST) -> SketchAST {
                 assert!(current_nest.size() == 0); // check we aren't deleting anything
                 SketchAST::Produce(n.clone(), var.clone(), Box::new(nest))
             },
-            SketchAST::Consume(n, var, current_nest) => {
-                assert!(current_nest.size() == 0); // check we aren't deleting anything
-                SketchAST::Consume(n.clone(), var.clone(), Box::new(nest))
+            SketchAST::Consume(n, var) => {
+                SketchAST::Consume(n.clone(), var.clone())
             },
             SketchAST::For(n, var, current_nest, range, properties) => {
                 assert!(current_nest.size() == 0); // check we aren't deleting anything

@@ -156,9 +156,8 @@ fn apply_reshape(ast: &AST, reshape: &Reshape) -> (AST, bool) {
                     let (new_ast, applied) = apply_reshape(&*ast, reshape);
                     (AST::Produce(func.clone(), Box::new(new_ast)), applied)
                 }
-                AST::Consume(func, ast) => {
-                    let (new_ast, applied) = apply_reshape(&*ast, reshape);
-                    (AST::Consume(func.clone(), Box::new(new_ast)), applied)
+                AST::Consume(func) => {
+                    (AST::Consume(func.clone()), false)
                 }
                 AST::For(var, ast, range, properties) => {
                     let (new_ast, applied) = apply_reshape(&*ast, reshape);
@@ -239,8 +238,8 @@ fn enforce_nested(opts: &Options, ast: &AST, outer: Var, inner: Var, func_lookup
         AST::Produce(_func, subast) => {
             enforce_nested(opts, &*subast, outer, inner, func_lookup, found_outer, found_inner)
         },
-        AST::Consume(_func, subast) => {
-            enforce_nested(opts, &*subast, outer, inner, func_lookup, found_outer, found_inner)
+        AST::Consume(_func) => {
+            vec![]
         },
         AST::For(var, subast, _range, properties) => {
             let this_is_inner = *var == inner;

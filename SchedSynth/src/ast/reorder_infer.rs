@@ -215,11 +215,10 @@ fn get_orders(opts: &Options, ast: &AST, current_producer: &Option<Func>,
             // (i.e. this will probably be buggy).
             get_orders(opts, ast, &Some(var.clone()), orders);
         },
-        AST::Consume(_var, ast) => {
+        AST::Consume(_var) => {
             // I don't think that a consume changes what the
             // current producer should be but mayb there are
             // cases where it should?
-            get_orders(opts, ast, current_producer, orders);
         },
         AST::For(var, ast, _range, _properties) => {
             // insert var.clone() into the vec in the orders map at the current_producer.
