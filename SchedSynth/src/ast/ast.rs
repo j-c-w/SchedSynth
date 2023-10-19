@@ -143,7 +143,7 @@ pub fn get_store_at_internal(opts: &Options, parent_variable: &Option<&Var>, ast
 }
 
 pub fn get_compute_at(opts: &Options, ast: &AST) -> Vec<(Func, Option<Func>, Option<Var>)> {
-    let compute_ats = get_compute_at_internal(opts, ast, &None, &None, &None);
+    let compute_ats = get_compute_at_internal(opts, ast, &None, &None);
     // Now, filter the compute ats: things that
     // are computed within functions will not
     // be computed at root:
@@ -180,6 +180,46 @@ pub fn get_compute_at(opts: &Options, ast: &AST) -> Vec<(Func, Option<Func>, Opt
 // We return Vec<(Var, Var, Var)> --- gives the
 // computed function (inner), the computed at function (outer)
 // and the index  (K)
+
+fn get_compute_at_internal(opts: &Options, ast: &AST, producer: &Option<Func>, last_variable:
+    &Option<Var>) -> Vec<(Func, Option<Func>, Option<Var>)> {
+        match ast {
+            AST::Produce(var, ast) => {
+                let inner_producer = Some(var.clone());
+                get_compute_at_internal(opts, ast, &inner_producer, last_variable)
+            },
+            AST::Consume(var) => {
+                match (producer, last_variable) {
+                    (Some(p), Some(lv)) => {
+                        vec![(var.clone(), Some(p.clone()), Some(lv.clone()))]
+                    },
+                    (_, _) =>
+                        // Insert a compute-root def?
+                        panic!("Consume at top level?")
+                }
+            },
+            AST::For(var, subast, _range, _properties) => {
+                get_compute_at_internal(opts, subast, producer, &Some(var.clone()))
+            },
+        AST::Assign(_var) => {
+            // TODo -- is there anything that we should do in this case?
+            vec![]
+        },
+        AST::StoreAt(_var) => {
+            vec![]
+        },
+        AST::Sequence(asts) => {
+            let mut res = vec![];
+            for ast in asts {
+                res.append(&mut get_compute_at_internal(opts, ast, producer, last_variable));
+            }
+            res
+        }
+    }
+}
+
+/*
+TODO --- need to fix this
 fn get_compute_at_internal(opts: &Options, ast: &AST, outer_producer: &Option<Func>, inner_producer: &Option<Func>, last_variable: &Option<Var>) -> Vec<(Func, Option<Func>, Option<Var>)> {
     // keep track of what should be passed in sub-calls.
     // if the 
@@ -193,14 +233,14 @@ fn get_compute_at_internal(opts: &Options, ast: &AST, outer_producer: &Option<Fu
             let new_inner_producer = Some(var.clone());
             // push the producers through
             let mut res = get_compute_at_internal(opts, ast, new_inner, &new_inner_producer, last_variable);
-            match (outer_producer, inner_producer) {
-                (None, None) => res.push((var.clone(), None, None)), // if neither was set, we want a compute_root
-                _ => (),
-            };
             res
         },
-        AST::Consume(_var) => {
-            vec![]
+        AST::Consume(var) => {
+            vec![
+            match (outer_producer, inner_producer) {
+                (None) => (var.clone(), None, None), // if neither was set, we want a compute_root
+                _ => (),
+            }]
         },
         AST::For(var, subast, _range, _properties) => {
             get_compute_at_internal(opts, subast, new_outer, new_inner, &Some(var.clone()))
@@ -239,6 +279,7 @@ fn get_compute_at_internal(opts: &Options, ast: &AST, outer_producer: &Option<Fu
         _ => rest
     }
 }
+*/
 
 
 // Return all the func/var combinations that
