@@ -4,6 +4,8 @@ use crate::gen::target::Target;
 use crate::ast::ast::*;
 use crate::reshape::reshape::Reshape;
 use crate::ast::ast::Property;
+use crate::gen::target::TargetHoles;
+use crate::gen::target::Hole;
 
 #[derive(Clone)]
 pub struct ExoFunc {
@@ -28,6 +30,10 @@ pub struct ExoProgram {
     pub funcs: Vec<ExoFunc>,
 }
 
+pub struct ExoHole {
+
+}
+
 impl Target for ExoProgram {}
 impl TargetGenerate for ExoProgram {
     fn generate(&self) -> String {
@@ -43,6 +49,10 @@ impl TargetLower for ExoProgram {
     fn to_compute_at(&mut self, commands: Vec<(Func, Option<Func>, Option<Var>)>) { }
     fn to_reorder(&mut self, commands: Vec<(Func, Var, Var)>) { }
     fn to_reshape(&mut self, commands: &Vec<Reshape>) { }
+}
+
+impl TargetHoles for ExoProgram {
+    fn get_holes(&self) -> Vec<&dyn Hole> { vec![] }
 }
 
 impl ToString for ExoProgram {

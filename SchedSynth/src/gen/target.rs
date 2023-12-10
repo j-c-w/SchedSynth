@@ -79,6 +79,15 @@ impl TargetLower for BackendInstance {
     }
 }
 
+impl TargetHoles for BackendInstance {
+    fn get_holes(&self) -> Vec<&dyn Hole> {
+        match self {
+            BackendInstance::Halide(hp) => hp.get_holes(),
+            BackendInstance::Exo(ep) => ep.get_holes()
+        }
+    }
+}
+
 pub fn newBackend(typ: Backend) -> BackendInstance {
     match typ {
         Backend::Exo() => BackendInstance::Exo(ExoProgram { commands: Vec::new(), funcs: Vec::new()
@@ -87,11 +96,19 @@ pub fn newBackend(typ: Backend) -> BackendInstance {
     }
 }
 
-pub trait Target: TargetGenerate + TargetLower + Clone {}
+pub trait Target: TargetGenerate + TargetLower + TargetHoles + Clone {}
 pub trait CommandType: ToString {}
 
 pub trait TargetGenerate {
     fn generate(&self) -> String;
+}
+
+pub trait TargetHoles {
+    fn get_holes(&self) -> Vec<&dyn Hole>;
+}
+
+pub trait Hole {
+    fn to_opentuner(&self) -> String;
 }
 
 pub trait TargetLower {

@@ -16,7 +16,7 @@ fn range_table_for_internal(opts: &Options, ast: &AST, table: &mut HashMap<Var, 
         AST::Consume(_var) => {
             ()
         },
-        AST::For(var, ast, range, properties) => {
+        AST::For(var, ast, range, _properties) => {
             table.insert(var.clone(), range.clone());
             range_table_for_internal(opts, ast, table)
         },

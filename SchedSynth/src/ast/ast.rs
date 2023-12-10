@@ -110,7 +110,7 @@ pub fn get_store_at(opts: &Options, ast: &AST) -> Vec<(Func, Func, Var)> {
 
 pub fn get_store_at_internal(opts: &Options, parent_variable: &Option<&Var>, ast: &AST) -> Vec<(Func, Var)> {
     match ast {
-        AST::Produce(func, ast) => {
+        AST::Produce(_func, ast) => {
             get_store_at_internal(opts, parent_variable, ast)
         },
         AST::Consume(func) => {
@@ -281,12 +281,7 @@ fn get_compute_at_internal(opts: &Options, ast: &AST, outer_producer: &Option<Fu
 }
 */
 
-
-// Return all the func/var combinations that
-// have one of the properties in 'properties'.
-// Also return each property that they have.
-fn get_loops_with_property(_opts: &Options, ast: &AST, current_producer: &Option<Func>, properties:
-    &Vec<Property>) -> Vec<(Func, Var, Property)> {
+fn get_loops_with_property(_opts: &Options, ast: &AST, current_producer: &Option<Func>, properties: &Vec<Property>) -> Vec<(Func, Var, Property)> {
     // recursively walk through the AST and
     // check if there is a vectorize node --- return the producer
     // that contains it, and the variable that is vectorized.

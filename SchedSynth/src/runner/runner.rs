@@ -25,6 +25,62 @@ pub fn best_schedule<T: Target>(opts: &Options, schedules: Vec<T>) -> T {
     }
 }
 
+// Build an opentuner wrapper for this program.
+pub fn build_opentuner<T: Target>(opts: &Options, schedule: T)  -> String {
+    let header = "#!/usr/bin/env python
+#
+# Autotune flags to g++ to optimize the performance of apps/raytracer.cpp
+#
+# This is an extremely simplified version meant only for tutorials
+#
+
+import opentuner
+from opentuner import ConfigurationManipulator
+from opentuner import EnumParameter
+from opentuner import IntegerParameter
+from opentuner import MeasurementInterface
+from opentuner import Result
+
+class InstanceTuner(MeasurementInterface):
+    def manipulator(self):
+        manipulator = ConfigurationManipulator()
+        MANIPULATOR_HOLE
+        return manipulator
+
+    def compile(self, cfg, id):
+        gcc_cmd = 'g++'
+
+        for variable_def in defs:
+            gcc_cmd += '-D{0}=\"{1}\"'.format(variable_def['name'], cfg[variable_def['name']])
+
+    def run_precompiled(self, input, limit, compile_result, id):
+        try:
+            run_result = self.call_program('./tmp{0}.bin'.format(id))
+            return Result(time=run_result['time'])
+        finally:
+            return Result()
+
+    def compile_and_run(self, desired_result, input, limit):
+        cfg = desired_result.configuration.data
+
+        compile_result = self.compile(cfg, 0)
+        return self.run_precompiled(desired_result, input, limit, compile_result, 0)
+
+if __name__ == '__main__':
+    argparser = opentuner.default_argparser()
+    InstanceTuner.main(argparser.parse_args())
+";
+
+    let holes = schedule.get_holes();
+    let mut manipulator = "".to_string();
+    for hole in holes {
+        manipulator.push_str(&hole.to_opentuner());
+    };
+
+    return header.replace("MANIPULATOR_HOLE", &manipulator);
+}
+
+
 // Get the best ranking execution result
 fn get_best_ranking(exec_results: &Vec<ExecutionResult>) -> i32 {
     let mut best_ranking = -1;

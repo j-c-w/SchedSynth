@@ -1,7 +1,9 @@
 use crate::options::options::Options;
 use crate::gen::target::TargetGenerate;
 use crate::gen::target::TargetLower;
+use crate::gen::target::TargetHoles;
 use crate::gen::target::Target;
+use crate::gen::target::Hole;
 use crate::ast::ast::*;
 use crate::reshape::reshape::Reshape;
 use crate::ast::ast::Property;
@@ -36,9 +38,32 @@ pub struct HalideProgram {
     pub commands: Vec<HalideCommand>
 }
 
+// Holes are a top-level primitive in the HalideCommand language,
+// but we also use this enum to keep track of the
+// properties with which each hole should be filled.
+#[derive(Clone)]
+pub enum HalideHole {
+    NumberHole(),
+    // Pattern holes best specified at the loop level
+    // rather than the optimization level.
+    PatternHole()
+}
+
+impl Hole for HalideHole {
+    fn to_opentuner(&self) -> String {
+        "Test".to_string()
+    }
+}
+
 impl TargetGenerate for HalideProgram {
     fn generate(&self) -> String {
         self.to_string()
+    }
+}
+
+impl TargetHoles for HalideProgram {
+    fn get_holes(&self) -> Vec<&dyn Hole> {
+        vec![]
     }
 }
 
