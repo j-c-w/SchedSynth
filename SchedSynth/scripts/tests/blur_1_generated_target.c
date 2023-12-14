@@ -34,9 +34,8 @@ int main(int argc, char **argv) {
 consumer.split(y, yo, yi, 16);
 consumer.split(x, xo, xi, 4);
 producer.compute_at(consumer, yi);
-consumer.compute_root();
 producer.store_at(consumer, yo);
-consumer.vectorize(xi);
+producer.vectorize(xi);
 consumer.parallel(yo);
 
 	// target

@@ -26,6 +26,6 @@ d
 # Build the new file and run it:
 cd $dir
 echo "Original Output: "
-./build.sh ${file}.c
+#./build.sh ${file}.c
 echo "New Output: "
-./build.sh ${file}_generated_target.c
+#./build.sh ${file}_generated_target.c

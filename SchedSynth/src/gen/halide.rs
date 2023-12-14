@@ -4,6 +4,7 @@ use crate::gen::target::TargetLower;
 use crate::gen::target::TargetHoles;
 use crate::gen::target::Target;
 use crate::gen::target::Hole;
+use crate::gen::target::HoleOption;
 use crate::ast::ast::*;
 use crate::reshape::reshape::Reshape;
 use crate::ast::ast::Property;
@@ -21,16 +22,16 @@ pub struct HVar {
 
 #[derive(Clone)]
 pub enum HalideCommand {
-    Vectorize(HFunc, HVar), // HFunc to vectorize
-    Parallel(HFunc, HVar), // HFunc to vectorize
-    Unroll(HFunc, HVar, i32), // HFunc to unroll, unroll factor.
+    Vectorize(HoleOption<HFunc>, HoleOption<HVar>), // HFunc to vectorize
+    Parallel(HoleOption<HFunc>, HoleOption<HVar>), // HFunc to vectorize
+    Unroll(HoleOption<HFunc>, HoleOption<HVar>, HoleOption<i32>), // HFunc to unroll, unroll factor.
     Tile(), // HFunc to tile, 
-    ComputeAt(HFunc, HFunc, HVar), // Compute func at func at varaiable
-    StoreAt(HFunc, HFunc, HVar), // store func at variable
-    ComputeRoot(HFunc), // Compute func at func at varaiable
-    Reorder(HFunc, (HVar, HVar)), // Reoder <to> hvar, hvar
-    Split(HFunc, HVar, (HVar, HVar), i32), // split var into (var, var) with tiling factor i32
-    Fuse(HFunc, (HVar, HVar), HVar), // fuse (var, var) into (var)
+    ComputeAt(HoleOption<HFunc>, HoleOption<HFunc>, HoleOption<HVar>), // Compute func at func at varaiable
+    StoreAt(HoleOption<HFunc>, HoleOption<HFunc>, HoleOption<HVar>), // store func at variable
+    ComputeRoot(HoleOption<HFunc>), // Compute func at func at varaiable
+    Reorder(HoleOption<HFunc>, (HoleOption<HVar>, HoleOption<HVar>)), // Reoder <to> hvar, hvar
+    Split(HoleOption<HFunc>, HoleOption<HVar>, (HoleOption<HVar>, HoleOption<HVar>), HoleOption<i32>), // split var into (var, var) with tiling factor i32
+    Fuse(HoleOption<HFunc>, (HoleOption<HVar>, HoleOption<HVar>), HoleOption<HVar>), // fuse (var, var) into (var)
 }
 
 #[derive(Clone)]
@@ -51,7 +52,11 @@ pub enum HalideHole {
 
 impl Hole for HalideHole {
     fn to_opentuner(&self) -> String {
-        "Test".to_string()
+        "manipulator.add_parameter(IntegerParameter('x', 0, 10))".to_string()
+    }
+
+    fn get_name(&self) -> String {
+        "x".to_string()
     }
 }
 
@@ -63,7 +68,9 @@ impl TargetGenerate for HalideProgram {
 
 impl TargetHoles for HalideProgram {
     fn get_holes(&self) -> Vec<&dyn Hole> {
-        vec![]
+        match self.commands {
+            TODO --- get the hole options
+        }
     }
 }
 

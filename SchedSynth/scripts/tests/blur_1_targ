@@ -1,9 +1,10 @@
-produce consumer:
+def producer:
+  for xo:
+    vectorized xi in [0, 3]:
+      compute
+def consumer:
   parallel yo:
     store producer
     for yi in [0, 15]:
-	  compute producer
-      consume producer:
-        for xo:
-          vectorized xi in [0, 3]:
-            consumer(...) = ...
+      compute producer
+      compute

@@ -4,6 +4,8 @@ use crate::reshape::reshape::Reshape;
 use crate::gen::halide::HalideProgram;
 use crate::gen::exo::ExoProgram;
 use crate::ast::ast::Property;
+use core::iter::Map;
+use std::collections::HashMap;
 
 #[derive(PartialEq,Clone,Copy)]
 pub enum Backend {
@@ -109,6 +111,30 @@ pub trait TargetHoles {
 
 pub trait Hole {
     fn to_opentuner(&self) -> String;
+    fn get_name(&self) -> String;
+    // TODO -- need a function to fill holes by name.
+}
+
+pub enum HoleValue {
+    IntHole(i32)
+}
+
+pub enum HoleOption<T> {
+    Hole(String, HashSet<T>),
+    Value(T)
+}
+
+impl<T: ToString> ToString for HoleOption<T> {
+ fn to_string(&self) -> String {
+        match self {
+            HoleOption::Hole(name, _) => name.to_string(),
+            HoleOption::Value(value) => value.to_string(),
+        }
+    }
+}
+
+pub struct HoleBindingMap {
+    pub map: HashMap<String, HoleValue>,
 }
 
 pub trait TargetLower {
