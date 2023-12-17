@@ -1,11 +1,13 @@
 use crate::ast::ast::AST;
-use crate::ast::ast::Range;
+use crate::ast::ast::ForRange;
 use crate::ast::ast::Var;
 use crate::ast::ast::Func;
 use crate::ast::ast::Property;
+use crate::ast::ast::NumberOrHole;
 use crate::sketch_parse::parser::SketchAST;
-use crate::sketch_parse::parser::RangeAST;
+use crate::sketch_parse::parser::ForRangeAST;
 use crate::sketch_parse::parser::ASTLoopProperty;
+use crate::sketch_parse::parser::ASTNumberOrHole;
 
 use std::fmt;
 
@@ -23,11 +25,11 @@ impl fmt::Display for Func {
 }
 
 
-impl fmt::Display for Range {
+impl fmt::Display for ForRange {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            Range::Between(start, end) => write!(f, "({}, {})", start, end),
-            Range::All() => write!(f, "all")
+            ForRange::Between(start, end) => write!(f, "({}, {})", start, end),
+            ForRange::All() => write!(f, "all")
         }
     }
 }
@@ -110,10 +112,10 @@ fn var_to_variable(var: Var) -> crate::sketch_parse::parser::Variable {
     crate::sketch_parse::parser::Variable { name: var.name }
 }
 
-fn ast_from_range(input: RangeAST) -> Range {
+fn ast_from_range(input: ForRangeAST) -> ForRange {
     match input {
-        RangeAST::Between(start, end) => Range::Between(start, end),
-        RangeAST::All() => Range::All()
+        ForRangeAST::Between(start, end) => ForRange::Between(start, end),
+        ForRangeAST::All() => ForRange::All()
     }
 }
 
@@ -150,6 +152,13 @@ pub fn property_from_loop_property(input: ASTLoopProperty) -> Property {
         ASTLoopProperty::Parallel() => Property::Parallel(),
         ASTLoopProperty::Unroll(i) => Property::Unroll(i)
     }
+}
+
+pub fn hole_from_ast_hole(input: ASTNumberOrHole) -> NumberOrHole  {
+	match input {
+		ASTNumberOrHole::Hole(set) => NumberOrHole::Hole(set),
+		ASTNumberOrHole::Number(n) => NumberOrHole::Number(n)
+	}
 }
 
 pub fn properties_from_loop_properties(input: Vec<ASTLoopProperty>) -> Vec<Property> {

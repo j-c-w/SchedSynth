@@ -3,6 +3,7 @@ use crate::ast::reorder_infer::get_reorders_internal;
 use crate::ast::reorder_infer::insert_reorders_internal;
 use crate::reshape::reshape::Reshape;
 use std::collections::HashSet;
+use crate::shared::range_set::Range;
 
 #[derive(Clone,Hash,Eq,PartialEq,Debug)]
 pub struct Var {
@@ -16,16 +17,22 @@ pub struct Func {
 }
 
 #[derive(Clone)]
-pub enum Range {
+pub enum ForRange {
     Between(i32, i32),
     All()
+}
+
+#[derive(Clone)]
+pub enum NumberOrHole {
+	Number(i32),
+	Hole(Range<i32>)
 }
 
 #[derive(Clone)]
 pub enum AST {
     Produce(Func, Box<AST>),
     Consume(Func),
-    For(Var, Box<AST>, Range, Vec<Property>),
+    For(Var, Box<AST>, ForRange, Vec<Property>),
     Assign(Func),
     StoreAt(Func),
     Sequence(Vec<AST>)
@@ -35,14 +42,14 @@ pub enum AST {
 pub enum Property {
     Vectorize(),
     Parallel(),
-    Unroll(i32)
+    Unroll(NumberOrHole)
 }
 
 pub trait ASTUtils {
     fn is_loop_type(&self) -> bool;
     fn get_iteration_variable(&self) -> Option<Var>;
     fn get_substruct(&self) -> Option<AST>;
-    fn get_iteration_range(&self) -> Option<Range>;
+    fn get_iteration_range(&self) -> Option<ForRange>;
     fn get_properties(&self) -> Vec<Property>;
 }
 
@@ -76,7 +83,7 @@ impl ASTUtils for AST {
             _ => None
         }
     }
-    fn get_iteration_range(&self) -> Option<Range> {
+    fn get_iteration_range(&self) -> Option<ForRange> {
         match self {
             AST::For(_, _, range, _) => Some(range.clone()),
             _ => None
@@ -339,7 +346,7 @@ pub fn get_parallel(opts: &Options, ast: &AST) -> Vec<(Func, Var, Property)> {
 //
 // Gets a list of the the vectorize commands required.
 pub fn get_unroll(opts: &Options, ast: &AST) -> Vec<(Func, Var, Property)> {
-    get_loops_with_property(opts, ast, &None, &vec![Property::Unroll(0)])
+    get_loops_with_property(opts, ast, &None, &vec![Property::Unroll(Integer(0))])
 }
 
 // Gets a list of the the vectorize commands required.

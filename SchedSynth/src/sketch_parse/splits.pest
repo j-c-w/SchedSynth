@@ -1,6 +1,8 @@
 alpha = { 'a'..'z' | 'A'..'Z' | "." | "_" }
 digit = { '0'..'9' }
 factor = {digit+}
+factor_or_hole = { factor | "??" | "<" ~ integer_set ~ ">" }
+integer_set = { "TODO" }
 
 ident = { (alpha|digit)+ }
 whitespace = { " " | "\t" }
@@ -12,7 +14,7 @@ whitespace_or_newlines = { whitespace_or_newline* }
 
 newline = { whitespace_star ~ "\n" }
 
-split = { ident ~ whitespace_star ~ "->" ~ whitespace_star ~ ident ~ whitespace_star ~ "," ~ whitespace_star ~ ident ~ whitespace_star ~ "," ~ whitespace_star ~ factor}
+split = { ident ~ whitespace_star ~ "->" ~ whitespace_star ~ ident ~ whitespace_star ~ "," ~ whitespace_star ~ ident ~ whitespace_star ~ "," ~ whitespace_star ~ factor_or_hole}
 fuse = { ident ~ whitespace_star ~ "," ~ whitespace_star ~ ident ~ whitespace_star ~ "->" ~ whitespace_star ~ ident}
 
 sequence = {

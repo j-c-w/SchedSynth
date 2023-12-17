@@ -12,6 +12,9 @@ use crate::ast::ast::Func;
 use crate::ast::ast::Var;
 use crate::ast::convert::variable_to_var;
 use crate::ast::ast::AST;
+use crate::sketch_parse::parser::ASTNumberOrHole;
+use crate::shared::range_set::AnyIntegerSet;
+use crate::ast::convert::ast_hole_to_hole;
 
 #[derive(Parser)]
 #[grammar = "sketch_parse/splits.pest"]
@@ -19,7 +22,7 @@ struct SplitsPest;
 
 #[derive(Clone)]
 pub enum SplitsAST {
-    Split(Variable, (Variable, Variable), i32),
+    Split(Variable, (Variable, Variable), ASTNumberOrHole),
     Fuse((Variable, Variable), Variable),
 }
 
@@ -30,12 +33,14 @@ fn splits_ast_to_reshape(ast: SplitsAST, func_lookup: &mut HashMap<Var, Func>) -
             let new_var1 = variable_to_var(var1);
             let new_var2 = variable_to_var(var2);
             let new_func = func_lookup.get(&new_var).unwrap().clone();
+
+            let new_dim = ast_hole_to_hole(dim);
             
             // keep the func_lookup table updated.
             func_lookup.insert(new_var1.clone(), new_func.clone());
             func_lookup.insert(new_var2.clone(), new_func.clone());
 
-            Reshape::Split(new_func, new_var, (new_var1, new_var2), dim)
+            Reshape::Split(new_func, new_var, (new_var1, new_var2), new_dim)
         },
         SplitsAST::Fuse((var1, var2), var) => {
             // note vars are in a different order from above.
@@ -70,13 +75,24 @@ impl ToString for SplitsAST
     }
 }
 
-fn process_factor(_opts: &Options, rule: Pair<Rule>) -> i32 {
+fn process_factor(_opts: &Options, rule: Pair<Rule>) -> ASTNumberOrHole {
     match rule.as_rule() {
         Rule::factor => {
             // convert rule string into i32
-            let factor_str = rule.as_span().as_str();
-            let factor_int = factor_str.parse::<i32>().unwrap();
-            factor_int
+			let mut inner = rule.into_inner();
+
+			if inner.len() == 1 {
+				let factor_str = rule.as_span().as_str();
+				if factor_str == "??" {
+					AnyIntegerSet {}
+				} else {
+					let factor_int = factor_str.parse::<i32>().unwrap();
+					factor_int
+				}
+			} else {
+				// This is a set
+				panic!("Unimplemented")
+			}
         }
         _ => panic!("Expected factor, got {:?}", rule.as_str()),
     }

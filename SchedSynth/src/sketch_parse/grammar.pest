@@ -3,9 +3,12 @@ digit = { '0'..'9' }
 colon = { ":" }
 
 number = { digit+ }
-range = { whitespace_plus ~ "in" ~ whitespace_star ~ "[" ~ number ~ whitespace_star ~ "," ~ whitespace_star ~ number ~ whitespace_star ~ "]" }
+number_or_hole = { "??" | "<" ~ number_set_hole ~ ">" | number }
+number_set_hole = { "TODO" }
+range = { whitespace_plus ~ "in" ~ whitespace_star ~ "[" ~ number_or_hole ~ whitespace_star ~ "," ~ whitespace_star ~ number_or_hole ~ whitespace_star ~ "]" }
 
 ident = { (alpha | digit) + }
+ident_or_hole = { ident | "??" }
 newline = { whitespace* ~ "\n"}
 
 indent = { "  " }
@@ -14,21 +17,21 @@ indent_nest = { indent* }
 
 optional_range = { ( range)? }
 
-produce = { "def" ~ whitespace_plus ~ ident ~ colon }
-consume = { "compute" ~ whitespace_plus ~ ident}
-pfor = {"for" ~ whitespace_plus ~ ident ~ optional_range ~ colon }
-vectorize = { "vectorized" ~ whitespace_plus ~ ident ~ optional_range ~ colon }
-parallel = { "parallel" ~ whitespace_plus ~ ident ~ optional_range ~ colon }
+produce = { "def" ~ whitespace_plus ~ ident_or_hole ~ colon }
+consume = { "compute" ~ whitespace_plus ~ ident_or_hole}
+pfor = {"for" ~ whitespace_plus ~ ident_or_hole ~ optional_range ~ colon }
+vectorize = { "vectorized" ~ whitespace_plus ~ ident_or_hole ~ optional_range ~ colon }
+parallel = { "parallel" ~ whitespace_plus ~ ident_or_hole ~ optional_range ~ colon }
 assignment = { "compute" }
-store_at = { "store" ~ whitespace_plus ~ ident }
-unroll = { "unrolled" ~ whitespace_plus ~ ident ~ optional_range ~ whitespace_plus ~ number ~ whitespace_star ~ colon}
+store_at = { "alloc" ~ whitespace_plus ~ ident_or_hole }
+unroll = { "unrolled" ~ whitespace_plus ~ ident_or_hole ~ optional_range ~ whitespace_plus ~ number_or_hole ~ whitespace_star ~ colon}
+structure_hole = { "??" ~ whitespace_star ~ colon}
 
 whitespace = { " " | "\t" }
 whitespace_plus = { whitespace+ }
 whitespace_star = { whitespace* }
 whitespace_or_newline = { whitespace | newline }
 whitespace_or_newlines = { whitespace_or_newline* }
-
 
 sequence_list = {
   sequence ~ newline ~ sequence_list

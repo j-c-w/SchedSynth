@@ -4,6 +4,8 @@ use pest_derive::Parser;
 use std::fs;
 
 use crate::options::options::Options;
+use crate::shared::range_set::Range;
+use crate::shared::range_set::AnyIntegerSet;
 
 #[derive(Parser)]
 #[grammar = "sketch_parse/grammar.pest"]
@@ -15,7 +17,7 @@ pub struct Variable {
 }
 
 #[derive(Clone)]
-pub enum RangeAST {
+pub enum ForRangeAST {
     Between(i32, i32), // start, end
     All()
 }
@@ -24,7 +26,7 @@ pub enum RangeAST {
 pub enum SketchAST { // nodes have nesting, <other stuff>
     Produce(i32, Variable, Box<SketchAST>), // name, contents
     Consume(i32, Variable), // name
-    For(i32, Variable, Box<SketchAST>, RangeAST, Vec<ASTLoopProperty>), // variable name, sub-contents, optional range
+    For(i32, Variable, Box<SketchAST>, ForRangeAST, Vec<ASTLoopProperty>), // variable name, sub-contents, optional range
     Assign(i32, Variable), // variable name
     StoreAt(i32, Variable), // variable name
     Sequence(i32, Vec<SketchAST>), // list of sub-asts
@@ -34,7 +36,13 @@ pub enum SketchAST { // nodes have nesting, <other stuff>
 pub enum ASTLoopProperty {
     Vectorize(),
     Parallel(),
-    Unroll(i32)
+    Unroll(ASTNumberOrHole)
+}
+
+#[derive(Clone)]
+pub enum ASTNumberOrHole {
+    Number(i32),
+    Hole(Range<i32>)
 }
 
 // Trait for SketchAST.
@@ -42,6 +50,15 @@ trait AST {
     fn children(&self) -> Vec<SketchAST>;
     fn node_type(&self) -> String;
     fn size(&self) -> i32;
+}
+
+impl ToString for ASTNumberOrHole {
+    fn to_string(&self) -> String {
+        match self {
+            ASTNumberOrHole::Number(n) => n.to_string(),
+            ASTNumberOrHole::Hole(range) => range.to_string()
+        }
+    }
 }
 
 impl ToString for ASTLoopProperty {
@@ -60,11 +77,11 @@ impl ToString for Variable {
     }
 }
 
-impl ToString for RangeAST {
+impl ToString for ForRangeAST {
     fn to_string(&self) -> String {
         match self {
-            RangeAST::Between(start, end) => format!("{}..{}", start, end),
-            RangeAST::All() => String::from("all"),
+            ForRangeAST::Between(start, end) => format!("{}..{}", start, end),
+            ForRangeAST::All() => String::from("all"),
         }
     }
 }
@@ -152,18 +169,35 @@ fn process_ident(opts: &Options, sequence: Pair<Rule>) -> Variable {
     }
 }
 
-fn process_number(_opts: &Options, num: Pair<Rule>) -> i32 {
+fn process_number(opts: &Options, num: Pair<Rule>) -> ASTNumberOrHole {
     match num.as_rule() {
         Rule::number => {
             let num_str = num.as_str();
             let num_val: i32 = num_str.parse().unwrap();
-            num_val
+            ASTNumberOrHole::Number(num_val)
         },
+		Rule::number_or_hole => {
+			let mut inner = num.into_inner();
+
+			if inner.len() > 1 {
+				// This is a number_set_hole
+				panic!("TODO")
+			} else {
+				let num_str = num.as_str();
+				if num_str == "??" {
+					ASTNumberOrHole::Hole(AnyIntegerSet)
+				} else {
+					// Recurse on the inner --- it is a number
+					// type
+					process_number(opts, inner.next().unwrap())
+				}
+			}
+		}
         _ => panic!("not a number {}", num.as_str())
     }
 }
 
-fn process_range(opts: &Options, sequence: Pair<Rule>) -> RangeAST {
+fn process_range(opts: &Options, sequence: Pair<Rule>) -> ForRangeAST {
     match sequence.as_rule() {
         Rule::optional_range => {
             // whitespace
@@ -184,7 +218,7 @@ fn process_range(opts: &Options, sequence: Pair<Rule>) -> RangeAST {
                 // let _ = range.next(); // ,
                 let _ = range.next(); // whitespace
                 let end = range.next().unwrap().as_str().parse::<i32>().unwrap(); // end
-                let res = RangeAST::Between(start, end);
+                let res = ForRangeAST::Between(start, end);
 
                 if opts.debug_parser {
                     println!("Parsed a range of {}", res.to_string());
@@ -196,7 +230,7 @@ fn process_range(opts: &Options, sequence: Pair<Rule>) -> RangeAST {
                     println!("Parsed a range of all") 
                 }
                 // no range
-                RangeAST::All()
+                ForRangeAST::All()
             }
         },
         _ => panic!("Must pass optinal_range to process_range")

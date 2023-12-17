@@ -6,6 +6,7 @@ use crate::gen::exo::ExoProgram;
 use crate::ast::ast::Property;
 use core::iter::Map;
 use std::collections::HashMap;
+use std::collections::HashSet;
 
 #[derive(PartialEq,Clone,Copy)]
 pub enum Backend {

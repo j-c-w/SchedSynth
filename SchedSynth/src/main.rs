@@ -1,11 +1,12 @@
 mod ast;
 mod gen;
 mod options;
+mod reshape;
+mod runner;
+mod shared;
 mod sketch_parse;
 mod synth;
 mod utils;
-mod reshape;
-mod runner;
 
 fn main() {
     let options = options::options::parse_options();
