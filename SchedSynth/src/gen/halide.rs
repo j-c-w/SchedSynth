@@ -5,9 +5,12 @@ use crate::gen::target::TargetHoles;
 use crate::gen::target::Target;
 use crate::gen::target::Hole;
 use crate::gen::target::HoleOption;
+use crate::gen::target::is_hole;
 use crate::ast::ast::*;
 use crate::reshape::reshape::Reshape;
 use crate::ast::ast::Property;
+
+use std::sync::Mutex;
 
 #[derive(Clone)]
 pub struct HFunc {
@@ -18,6 +21,21 @@ pub struct HFunc {
 #[derive(Clone)]
 pub struct HVar {
     pub name: String
+}
+
+impl std::fmt::Display for HFunc {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match self.update {
+            Some(upnum) => write!(f, "{}.update({})", self.name, upnum),
+            None => write!(f, "{}", self.name)
+        }
+    }
+}
+
+impl std::fmt::Display for HVar {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(f, "{}", self.name)
+    }
 }
 
 #[derive(Clone)]
@@ -32,6 +50,116 @@ pub enum HalideCommand {
     Reorder(HoleOption<HFunc>, (HoleOption<HVar>, HoleOption<HVar>)), // Reoder <to> hvar, hvar
     Split(HoleOption<HFunc>, HoleOption<HVar>, (HoleOption<HVar>, HoleOption<HVar>), HoleOption<i32>), // split var into (var, var) with tiling factor i32
     Fuse(HoleOption<HFunc>, (HoleOption<HVar>, HoleOption<HVar>), HoleOption<HVar>), // fuse (var, var) into (var)
+}
+
+impl TargetHoles for HalideProgram {
+    fn get_holes(&self) -> Vec<Box<dyn Hole>> {
+        let mut holes: Vec<Box<dyn Hole>> = vec![];
+        for command in &self.commands {
+            match command {
+                HalideCommand::Vectorize(ref hf, ref hv) => {
+                    if is_hole(hf) {
+                        holes.push(Box::new(hf.clone()))
+                    }
+                    if is_hole(hv) {
+                        holes.push(Box::new(hv.clone()))
+                    }
+                },
+                HalideCommand::Parallel(ref hf, ref hv) => {
+                    if is_hole(hf) {
+                        holes.push(Box::new(hf.clone()))
+                    }
+                    if is_hole(hv) {
+                        holes.push(Box::new(hv.clone()))
+                    }
+                },
+                HalideCommand::Unroll(ref hf, ref hv, ref hi) => {
+                    if is_hole(hf) {
+                        holes.push(Box::new(hf.clone()))
+                    }
+                    if is_hole(hv) {
+                        holes.push(Box::new(hv.clone()))
+                    }
+                    if is_hole(hi) {
+                        holes.push(Box::new(hi.clone()))
+                    }
+                },
+                HalideCommand::Tile() => {
+                    // TODO
+                },
+                HalideCommand::ComputeAt(ref hf1, ref hf2, ref hv) => {
+                    if is_hole(hf1) {
+                        holes.push(Box::new(hf1.clone()))
+                    }
+                    if is_hole(hf2) {
+                        holes.push(Box::new(hf2.clone()))
+                    }
+                    if is_hole(hv) {
+                        holes.push(Box::new(hv.clone()))
+                    }
+                },
+                HalideCommand::StoreAt(ref hf1, ref hf2, ref hv) => {
+                    if is_hole(hf1) {
+                        holes.push(Box::new(hf1.clone()))
+                    }
+                    if is_hole(hf2) {
+                        holes.push(Box::new(hf2.clone()))
+                    }
+                    if is_hole(hv) {
+                        holes.push(Box::new(hv.clone()))
+                    }
+                },
+                HalideCommand::ComputeRoot(ref hf) => {
+                    if is_hole(hf) {
+                        holes.push(Box::new(hf.clone()))
+                    }
+                },
+                HalideCommand::Reorder(ref hf, ref hv) => {
+                    if is_hole(hf) {
+                        holes.push(Box::new(hf.clone()))
+                    }
+                    if is_hole(&hv.0) {
+                        holes.push(Box::new(hv.0.clone()))
+                    }
+                    if is_hole(&hv.1) {
+                        holes.push(Box::new(hv.1.clone()))
+                    }
+                },
+                HalideCommand::Split(ref hf, ref hv, ref hvs, ref hi) => {
+                    if is_hole(hf) {
+                        holes.push(Box::new(hf.clone()))
+                    }
+                    if is_hole(hv) {
+                        holes.push(Box::new(hv.clone()))
+                    }
+                    if is_hole(&hvs.0) {
+                        holes.push(Box::new(hvs.0.clone()))
+                    }
+                    if is_hole(&hvs.1) {
+                        holes.push(Box::new(hvs.1.clone()))
+                    }
+                    if is_hole(hi) {
+                        holes.push(Box::new(hi.clone()))
+                    }
+                },
+                HalideCommand::Fuse(ref hf, ref hvs, ref hv) => {
+                    if is_hole(hf) {
+                        holes.push(Box::new(hf.clone()))
+                    }
+                    if is_hole(&hvs.0) {
+                        holes.push(Box::new(hvs.0.clone()))
+                    }
+                    if is_hole(&hvs.1) {
+                        holes.push(Box::new(hvs.1.clone()))
+                    }
+                    if is_hole(hv) {
+                        holes.push(Box::new(hv.clone()))
+                    }
+                },
+            }
+        }
+        holes
+    }
 }
 
 #[derive(Clone)]
@@ -66,11 +194,28 @@ impl TargetGenerate for HalideProgram {
     }
 }
 
-impl TargetHoles for HalideProgram {
-    fn get_holes(&self) -> Vec<&dyn Hole> {
-        match self.commands {
-            TODO --- get the hole options
-        }
+//temp shortcut for this wrapper --- I expect
+// that eventually the middle end will support
+// holes and so re-wrapping everything here will
+// be unnessecary.
+fn v<T>(i: T) -> HoleOption<T> {
+    HoleOption::Value(i)
+}
+
+static hole_number_so_far: Mutex<i32> = Mutex::new(0);
+fn get_hole_name() -> String {
+    let mut num = hole_number_so_far.lock().unwrap();
+    *num = *num + 1;
+
+    return "hole_".to_owned() + &(*num).to_string();
+}
+
+fn number_or_hole_to_hole_option(n: NumberOrHole) -> HoleOption<i32> {
+    match n {
+        NumberOrHole::Number(n) => HoleOption::Value(n),
+        NumberOrHole::Hole(range) =>
+            HoleOption::IntHole(get_hole_name(), range)
+            // TODO --- convert to something for the halid backeng
     }
 }
 
@@ -84,7 +229,7 @@ impl TargetLower for HalideProgram {
         for (func, hvar, _) in commands {
             let hfunc = HFunc { name: func.name, update: func.update };
             let hhvar = HVar { name: hvar.name };
-            halide_commands.push(HalideCommand::Vectorize(hfunc, hhvar));
+            halide_commands.push(HalideCommand::Vectorize(v(hfunc), v(hhvar)));
         }
 
         self.commands.append(&mut halide_commands);
@@ -95,7 +240,7 @@ impl TargetLower for HalideProgram {
         for (func, hvar, _) in commands {
             let hfunc = HFunc { name: func.name, update: func.update };
             let hhvar = HVar { name: hvar.name };
-            halide_commands.push(HalideCommand::Parallel(hfunc, hhvar));
+            halide_commands.push(HalideCommand::Parallel(v(hfunc), v(hhvar)));
         }
         self.commands.append(&mut halide_commands)
     }
@@ -109,7 +254,7 @@ impl TargetLower for HalideProgram {
 			};
             let hfunc = HFunc { name: func.name, update: func.update };
             let hhvar = HVar { name: hvar.name };
-            halide_commands.push(HalideCommand::Unroll(hfunc, hhvar, factor));
+            halide_commands.push(HalideCommand::Unroll(v(hfunc), v(hhvar), number_or_hole_to_hole_option(factor)));
         }
         self.commands.append(&mut halide_commands)
     }
@@ -120,7 +265,7 @@ impl TargetLower for HalideProgram {
             let hfunc = HFunc { name: func.name, update: func.update };
             let hfunc2 = HFunc { name: func2.name, update: func2.update };
             let hhvar = HVar { name: hvar.name };
-            halide_commands.push(HalideCommand::StoreAt(hfunc, hfunc2, hhvar));
+            halide_commands.push(HalideCommand::StoreAt(v(hfunc), v(hfunc2), v(hhvar)));
         }
         self.commands.append(&mut halide_commands)
     }
@@ -135,12 +280,12 @@ impl TargetLower for HalideProgram {
                 (Some(compute_at_func), Some(hvar)) => {
                     let hhvar = HVar { name: hvar.name };
                     let hcompute_at_func = HFunc { name: compute_at_func.name, update: func.update };
-                    halide_commands.push(HalideCommand::ComputeAt(hfunc, hcompute_at_func, hhvar));
+                    halide_commands.push(HalideCommand::ComputeAt(v(hfunc), v(hcompute_at_func), v(hhvar)));
                 },
                 (None, None) => {
                     // I /think/ that this is only possible this wa.
                     // Not 100% sure what it means with the var set.
-                    halide_commands.push(HalideCommand::ComputeRoot(hfunc));
+                    halide_commands.push(HalideCommand::ComputeRoot(v(hfunc)));
                 },
                 (None, Some(v)) => panic!("Unexpected variable {} set when processing compute_root", v),
                 (Some(v), None) => panic!("Unexpected func {} set when processing compute_root", v)
@@ -157,7 +302,7 @@ impl TargetLower for HalideProgram {
             let hfunc = HFunc { name: func.name, update: func.update };
             let hvar1 = HVar { name: compute_at_func.name };
             let hvar2 = HVar { name: hvar.name };
-            halide_commands.push(HalideCommand::Reorder(hfunc, (hvar1, hvar2)));
+            halide_commands.push(HalideCommand::Reorder(v(hfunc), (v(hvar1), v(hvar2))));
         }
         self.commands.append(&mut halide_commands)
     }
@@ -175,20 +320,20 @@ impl TargetLower for HalideProgram {
                     let hvar = HVar { name: var.name.clone() };
                     let hvar1 = HVar { name: var1.name.clone() };
                     let hvar2 = HVar { name: var2.name.clone() };
-                    halide_commands.push(HalideCommand::Split(hfunc, hvar, (hvar1, hvar2), factor.clone()));
+                    halide_commands.push(HalideCommand::Split(v(hfunc), v(hvar), (v(hvar1), v(hvar2)), number_or_hole_to_hole_option(factor.clone())));
                 },
                 Reshape::Fuse(func, (var1, var2), var) => {
                     let hfunc = HFunc { name: func.name.clone(), update: func.update.clone() };
                     let hvar = HVar { name: var.name.clone() };
                     let hvar1 = HVar { name: var1.name.clone() };
                     let hvar2 = HVar { name: var2.name.clone() };
-                    halide_commands.push(HalideCommand::Fuse(hfunc, (hvar1, hvar2), hvar));
+                    halide_commands.push(HalideCommand::Fuse(v(hfunc), (v(hvar1), v(hvar2)), v(hvar)));
                 },
                 Reshape::Reorder(func, (var1, var2)) => {
                     let hfunc = HFunc { name: func.name.clone(), update: func.update.clone() };
                     let hvar1 = HVar { name: var1.name.clone() };
                     let hvar2 = HVar { name: var2.name.clone() };
-                    halide_commands.push(HalideCommand::Reorder(hfunc, (hvar1, hvar2)));
+                    halide_commands.push(HalideCommand::Reorder(v(hfunc), (v(hvar1), v(hvar2))));
                 },
             }
         }
@@ -206,21 +351,6 @@ impl ToString for HalideProgram {
             result.push_str("\n");
         }
         result
-    }
-}
-
-impl ToString for HFunc {
-    fn to_string(&self) -> String {
-        match self.update {
-            Some(up) => format!("{}.update({})", self.name.clone(), up),
-            None => self.name.clone()
-        }
-    }
-}
-
-impl ToString for HVar {
-    fn to_string(&self) -> String {
-        self.name.clone()
     }
 }
 

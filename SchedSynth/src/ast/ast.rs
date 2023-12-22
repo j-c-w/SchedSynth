@@ -4,6 +4,7 @@ use crate::ast::reorder_infer::insert_reorders_internal;
 use crate::reshape::reshape::Reshape;
 use std::collections::HashSet;
 use crate::shared::range_set::Range;
+use crate::shared::range_set::IntegerRangeSet;
 
 #[derive(Clone,Hash,Eq,PartialEq,Debug)]
 pub struct Var {
@@ -16,16 +17,26 @@ pub struct Func {
     pub update: Option<i32>,
 }
 
-#[derive(Clone)]
-pub enum ForRange {
-    Between(i32, i32),
-    All()
+#[derive(Clone,Eq)]
+pub enum NumberOrHole {
+	Number(i32),
+	Hole(IntegerRangeSet)
 }
 
 #[derive(Clone)]
-pub enum NumberOrHole {
-	Number(i32),
-	Hole(Range<i32>)
+pub enum ForRange {
+    Between(NumberOrHole, NumberOrHole),
+    All()
+}
+
+impl PartialEq for NumberOrHole {
+    fn eq(&self, other: &NumberOrHole) -> bool {
+        match (self, other) {
+            (&NumberOrHole::Number(ref a), &NumberOrHole::Number(ref b)) => a == b,
+            (&NumberOrHole::Hole(ref a), &NumberOrHole::Hole(ref b)) => a == b,
+            _ => false
+        }
+    }
 }
 
 #[derive(Clone)]
@@ -51,6 +62,15 @@ pub trait ASTUtils {
     fn get_substruct(&self) -> Option<AST>;
     fn get_iteration_range(&self) -> Option<ForRange>;
     fn get_properties(&self) -> Vec<Property>;
+}
+
+impl std::fmt::Display for NumberOrHole {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+		match self {
+			NumberOrHole::Number(n) => write!(f, "{}", n),
+			NumberOrHole::Hole(rs) => write!(f, "{}", rs)
+		}
+	}
 }
 
 impl ASTUtils for AST {
@@ -346,7 +366,7 @@ pub fn get_parallel(opts: &Options, ast: &AST) -> Vec<(Func, Var, Property)> {
 //
 // Gets a list of the the vectorize commands required.
 pub fn get_unroll(opts: &Options, ast: &AST) -> Vec<(Func, Var, Property)> {
-    get_loops_with_property(opts, ast, &None, &vec![Property::Unroll(Integer(0))])
+    get_loops_with_property(opts, ast, &None, &vec![Property::Unroll(NumberOrHole::Number(0))])
 }
 
 // Gets a list of the the vectorize commands required.

@@ -14,7 +14,7 @@ use crate::ast::convert::variable_to_var;
 use crate::ast::ast::AST;
 use crate::sketch_parse::parser::ASTNumberOrHole;
 use crate::shared::range_set::AnyIntegerSet;
-use crate::ast::convert::ast_hole_to_hole;
+use crate::ast::convert::hole_from_ast_hole;
 
 #[derive(Parser)]
 #[grammar = "sketch_parse/splits.pest"]
@@ -34,7 +34,7 @@ fn splits_ast_to_reshape(ast: SplitsAST, func_lookup: &mut HashMap<Var, Func>) -
             let new_var2 = variable_to_var(var2);
             let new_func = func_lookup.get(&new_var).unwrap().clone();
 
-            let new_dim = ast_hole_to_hole(dim);
+            let new_dim = hole_from_ast_hole(dim);
             
             // keep the func_lookup table updated.
             func_lookup.insert(new_var1.clone(), new_func.clone());
@@ -77,22 +77,26 @@ impl ToString for SplitsAST
 
 fn process_factor(_opts: &Options, rule: Pair<Rule>) -> ASTNumberOrHole {
     match rule.as_rule() {
-        Rule::factor => {
+        Rule::factor_or_hole => {
             // convert rule string into i32
-			let mut inner = rule.into_inner();
+			let mut inner = rule.clone().into_inner();
 
 			if inner.len() == 1 {
 				let factor_str = rule.as_span().as_str();
 				if factor_str == "??" {
-					AnyIntegerSet {}
+                    ASTNumberOrHole::Hole(AnyIntegerSet())
 				} else {
 					let factor_int = factor_str.parse::<i32>().unwrap();
-					factor_int
+					ASTNumberOrHole::Number(factor_int)
 				}
 			} else {
 				// This is a set
 				panic!("Unimplemented")
 			}
+        },
+        Rule::factor => {
+            let factor_int = rule.as_str().parse::<i32>().unwrap();
+            ASTNumberOrHole::Number(factor_int)
         }
         _ => panic!("Expected factor, got {:?}", rule.as_str()),
     }

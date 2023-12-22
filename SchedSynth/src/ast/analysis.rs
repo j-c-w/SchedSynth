@@ -3,12 +3,12 @@ use crate::options::options::Options;
 use crate::ast::ast::AST;
 use crate::ast::ast::Var;
 use crate::ast::ast::Func;
-use crate::ast::ast::Range;
+use crate::ast::ast::ForRange;
 
 // recursively walk through the ast --- for every loop node (vect or for)
 // add to the lookup table so we can access the range that that variable
 // takes.
-fn range_table_for_internal(opts: &Options, ast: &AST, table: &mut HashMap<Var, Range>) {
+fn range_table_for_internal(opts: &Options, ast: &AST, table: &mut HashMap<Var, ForRange>) {
     match ast {
         AST::Produce(_var, ast) => {
             range_table_for_internal(opts, ast, table)
@@ -30,7 +30,7 @@ fn range_table_for_internal(opts: &Options, ast: &AST, table: &mut HashMap<Var, 
     }
 }
 
-pub fn range_table_for(opts: &Options, ast: &AST) -> HashMap<Var, Range> {
+pub fn range_table_for(opts: &Options, ast: &AST) -> HashMap<Var, ForRange> {
     let mut map = HashMap::new();
     range_table_for_internal(opts, ast, &mut map);
     map

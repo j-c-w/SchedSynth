@@ -114,7 +114,7 @@ fn var_to_variable(var: Var) -> crate::sketch_parse::parser::Variable {
 
 fn ast_from_range(input: ForRangeAST) -> ForRange {
     match input {
-        ForRangeAST::Between(start, end) => ForRange::Between(start, end),
+        ForRangeAST::Between(start, end) => ForRange::Between(hole_from_ast_hole(start), hole_from_ast_hole(end)),
         ForRangeAST::All() => ForRange::All()
     }
 }
@@ -150,7 +150,7 @@ pub fn property_from_loop_property(input: ASTLoopProperty) -> Property {
     match input {
         ASTLoopProperty::Vectorize() => Property::Vectorize(),
         ASTLoopProperty::Parallel() => Property::Parallel(),
-        ASTLoopProperty::Unroll(i) => Property::Unroll(i)
+        ASTLoopProperty::Unroll(i) => Property::Unroll(hole_from_ast_hole(i))
     }
 }
 

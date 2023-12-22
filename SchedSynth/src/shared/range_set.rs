@@ -1,72 +1,122 @@
+#[derive(Clone,Eq)]
 pub struct IntegerRangeSet {
     ranges: Vec<RangeType<i32>>
 }
 
-pub struct AnyIntegerSet {
-
+impl PartialEq for IntegerRangeSet {
+    fn eq(&self, other: &IntegerRangeSet) -> bool {
+        self.ranges == other.ranges
+    }
 }
 
+#[derive(Clone,Eq)]
 pub enum RangeType<Item> {
     Between(Item, Item),
     Set(Vec<Item>)
 }
 
-pub trait Range<Item> {
-    fn contains(&self, i: Item) -> bool;
-    fn to_string(&self) -> String;
-}
-
-impl ToString for RangeType<i32> {
-    fn to_string(&self) -> String {
-        match self {
-            RangeType::Between(f, t) => f.to_string() + " -- " + t.to_string(),
-            RangeType::Set(items) => "{" + items.to_string() + "}"
+impl<T: PartialEq> PartialEq for RangeType<T> {
+    fn eq(&self, other: &RangeType<T>) -> bool {
+        match (self, other) {
+            (RangeType::Between(a, b), RangeType::Between(c, d)) => a == c && b == d,
+            (RangeType::Set(a), RangeType::Set(b)) => a == b,
+            _ => false
         }
     }
 }
 
-impl Range<i32> for IntegerRangeSet {
-    fn contains(&self, i: i32) -> bool {
-        for range in self.ranges {
+impl std::fmt::Display for IntegerRangeSet {
+ fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        let mut result = String::new();
+        for range in &self.ranges {
             match range {
-                RangeType::Between(from, to) => {
-                    if (i >= from) && (i <= to) {
-                        return true;
+                RangeType::Between(start, end) => {
+                    result.push_str(&format!("{}-{},", start, end));
+                },
+                RangeType::Set(items) => {
+                    for item in items {
+                        result.push_str(&format!("{},", item));
+                    }
+                }
+            }
+        }
+        write!(f, "{}", result)
+    }
+}
+
+pub trait Range<Item>: Clone {
+    fn contains(&self, i: Item) -> bool;
+    fn to_string(&self) -> String;
+}
+
+pub trait TotalOrderRange<Item> {
+    fn min_elt(&self) -> Item;
+    fn max_elt(&self) -> Item;
+}
+
+impl TotalOrderRange<i32> for IntegerRangeSet {
+    fn min_elt(&self) -> i32 {
+        let mut min = std::i32::MAX;
+        for range in &self.ranges {
+            match range {
+                RangeType::Between(start, _) => {
+                    if *start < min {
+                        min = *start;
                     }
                 },
                 RangeType::Set(items) => {
                     for item in items {
-                        if (i == item) {
-                            return true;
+                        if *item < min {
+                            min = *item;
                         }
                     }
                 }
             }
         }
-
-        return false;
+        min
     }
 
-    fn to_string(&self) -> String {
-        let mut result = "<";
-
-        for range in self.ranges {
-            result.push(range.to_string())
+    fn max_elt(&self) -> i32 {
+        let mut max = std::i32::MIN;
+        for range in &self.ranges {
+            match range {
+                RangeType::Between(_, end) => {
+                    if *end > max {
+                        max = *end;
+                    }
+                },
+                RangeType::Set(items) => {
+                    for item in items {
+                        if *item > max {
+                            max = *item;
+                        }
+                    }
+                }
+            }
         }
-        result.push(">");
-
-        return result;
+        max
     }
 }
 
-impl Range<Item> for AnyIntegerSet {
-    fn contains(&self, i: Item) -> bool {
-        return true;
-    }
-
+impl ToString for RangeType<i32> {
     fn to_string(&self) -> String {
-        "??"
+        match self {
+            RangeType::Between(f, t) => f.to_string() + " -- " + &t.to_string(),
+            RangeType::Set(items) => {
+                let mut vec_items = String::new();
+                for item in items {
+                    vec_items.push_str(&(item.to_string() + ", "))
+                }
+                "{".to_owned() + &vec_items + "}"
+            }
+        }
     }
 }
 
-
+pub fn AnyIntegerSet() -> IntegerRangeSet {
+    // return IntegerRangeSet for all numbers (approximate 
+    // as range -2048 to 2048 for now)
+    IntegerRangeSet {
+        ranges: vec![RangeType::Between(-2048, 2048)]
+    }
+}

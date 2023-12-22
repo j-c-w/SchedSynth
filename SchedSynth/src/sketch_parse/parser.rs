@@ -5,6 +5,7 @@ use std::fs;
 
 use crate::options::options::Options;
 use crate::shared::range_set::Range;
+use crate::shared::range_set::IntegerRangeSet;
 use crate::shared::range_set::AnyIntegerSet;
 
 #[derive(Parser)]
@@ -18,7 +19,7 @@ pub struct Variable {
 
 #[derive(Clone)]
 pub enum ForRangeAST {
-    Between(i32, i32), // start, end
+    Between(ASTNumberOrHole, ASTNumberOrHole), // start, end
     All()
 }
 
@@ -42,7 +43,7 @@ pub enum ASTLoopProperty {
 #[derive(Clone)]
 pub enum ASTNumberOrHole {
     Number(i32),
-    Hole(Range<i32>)
+    Hole(IntegerRangeSet)
 }
 
 // Trait for SketchAST.
@@ -52,11 +53,11 @@ trait AST {
     fn size(&self) -> i32;
 }
 
-impl ToString for ASTNumberOrHole {
-    fn to_string(&self) -> String {
+impl std::fmt::Display for ASTNumberOrHole {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            ASTNumberOrHole::Number(n) => n.to_string(),
-            ASTNumberOrHole::Hole(range) => range.to_string()
+            ASTNumberOrHole::Number(n) => write!(f, "{}", n),
+            ASTNumberOrHole::Hole(r) => write!(f, "{}", r)
         }
     }
 }
@@ -165,6 +166,19 @@ fn process_ident(opts: &Options, sequence: Pair<Rule>) -> Variable {
             let name = sequence.as_str();
             Variable{name: name.into()}
         },
+        Rule::ident_or_hole => {
+            if opts.debug_parser {
+                println!("Got an ident or hole");
+            }
+            
+            let name = sequence.as_str();
+            if name == "??" {
+                Variable{name: name.into()} // TODO -- need to return a hole here.
+            } else {
+                Variable{name: name.into()}
+            }
+
+        }
         _ => panic!("Unable to process non-ident sequence '{}' into variable", sequence.as_str())
     }
 }
@@ -177,7 +191,7 @@ fn process_number(opts: &Options, num: Pair<Rule>) -> ASTNumberOrHole {
             ASTNumberOrHole::Number(num_val)
         },
 		Rule::number_or_hole => {
-			let mut inner = num.into_inner();
+			let mut inner = num.clone().into_inner();
 
 			if inner.len() > 1 {
 				// This is a number_set_hole
@@ -185,7 +199,7 @@ fn process_number(opts: &Options, num: Pair<Rule>) -> ASTNumberOrHole {
 			} else {
 				let num_str = num.as_str();
 				if num_str == "??" {
-					ASTNumberOrHole::Hole(AnyIntegerSet)
+					ASTNumberOrHole::Hole(AnyIntegerSet())
 				} else {
 					// Recurse on the inner --- it is a number
 					// type
@@ -213,11 +227,11 @@ fn process_range(opts: &Options, sequence: Pair<Rule>) -> ForRangeAST {
                 //let _ = range.next(); // in
                 let _ = range.next(); // whitespace
                 //let _ = range.next(); // [
-                let start = range.next().unwrap().as_str().parse::<i32>().unwrap(); // start
+                let start = process_number(opts, range.next().unwrap());
                 let _ = range.next(); // whitespace
                 // let _ = range.next(); // ,
                 let _ = range.next(); // whitespace
-                let end = range.next().unwrap().as_str().parse::<i32>().unwrap(); // end
+                let end = process_number(opts, range.next().unwrap());
                 let res = ForRangeAST::Between(start, end);
 
                 if opts.debug_parser {

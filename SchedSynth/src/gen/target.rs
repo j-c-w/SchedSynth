@@ -7,6 +7,9 @@ use crate::ast::ast::Property;
 use core::iter::Map;
 use std::collections::HashMap;
 use std::collections::HashSet;
+use crate::shared::range_set::Range;
+use crate::shared::range_set::IntegerRangeSet;
+use crate::shared::range_set::TotalOrderRange;
 
 #[derive(PartialEq,Clone,Copy)]
 pub enum Backend {
@@ -83,7 +86,7 @@ impl TargetLower for BackendInstance {
 }
 
 impl TargetHoles for BackendInstance {
-    fn get_holes(&self) -> Vec<&dyn Hole> {
+    fn get_holes(&self) -> Vec<Box<dyn Hole>> {
         match self {
             BackendInstance::Halide(hp) => hp.get_holes(),
             BackendInstance::Exo(ep) => ep.get_holes()
@@ -107,7 +110,7 @@ pub trait TargetGenerate {
 }
 
 pub trait TargetHoles {
-    fn get_holes(&self) -> Vec<&dyn Hole>;
+    fn get_holes(&self) -> Vec<Box<dyn Hole>>;
 }
 
 pub trait Hole {
@@ -120,16 +123,62 @@ pub enum HoleValue {
     IntHole(i32)
 }
 
+#[derive(Clone)]
 pub enum HoleOption<T> {
     Hole(String, HashSet<T>),
+    IntHole(String, IntegerRangeSet),
     Value(T)
 }
 
-impl<T: ToString> ToString for HoleOption<T> {
- fn to_string(&self) -> String {
+impl<T: std::fmt::Display> Hole for HoleOption<T> {
+ fn to_opentuner(&self) -> String {
         match self {
-            HoleOption::Hole(name, _) => name.to_string(),
-            HoleOption::Value(value) => value.to_string(),
+            &HoleOption::Hole(ref name, ref set) => {
+                let mut s = String::new();
+                s.push_str(&format!("param.{} = hp.Choice('{}', [", name, name));
+                for (i, v) in set.iter().enumerate() {
+                    s.push_str(&format!("{}", v));
+                    if i < set.len() - 1 {
+                        s.push_str(", ");
+                    }
+                }
+                s.push_str("])");
+                s
+            },
+            &HoleOption::IntHole(ref name, ref range) => {
+                let mut s = String::new();
+                s.push_str(&format!("param.{} = hp.UniformInteger('{}', {}, {})", name, name, range.min_elt(), range.max_elt()));
+                s
+            },
+            &HoleOption::Value(ref v) => {
+                format!("{}", v)
+            }
+        }
+    }
+
+    fn get_name(&self) -> String {
+        match self {
+            &HoleOption::Hole(ref name, _) => name.clone(),
+            &HoleOption::IntHole(ref name, _) => name.clone(),
+            &HoleOption::Value(_) => panic!("Cannot get name of a value")
+        }
+    }
+}
+
+pub fn is_hole<T>(opt: &HoleOption<T>) -> bool {
+    match opt {
+        HoleOption::Hole(_, _) => true,
+        HoleOption::IntHole(_, _) => true,
+        _ => false
+    }
+}
+
+impl <T: std::fmt::Display> std::fmt::Display for HoleOption<T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            HoleOption::Hole(name, _) => write!(f, "Hole({})", name),
+            HoleOption::IntHole(name, _) => write!(f, "Hole({})", name),
+            HoleOption::Value(value) => write!(f, "{}", value)
         }
     }
 }

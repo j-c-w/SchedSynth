@@ -1,8 +1,9 @@
 use crate::ast::ast::Var;
 use crate::ast::ast::Func;
-use crate::ast::ast::Range;
+use crate::ast::ast::ForRange;
 use crate::ast::ast::AST;
 use crate::ast::ast::ASTUtils;
+use crate::ast::ast::NumberOrHole;
 
 use crate::options::options::Options;
 use std::collections::HashMap;
@@ -11,7 +12,7 @@ use std::fmt;
 
 #[derive(Clone)]
 pub enum Reshape {
-    Split(Func, Var, (Var, Var), i32),
+    Split(Func, Var, (Var, Var), NumberOrHole),
     Reorder(Func, (Var, Var)),
     Fuse(Func, (Var, Var), Var)
 }
@@ -69,8 +70,8 @@ fn can_apply(ast: &AST, reshape: &Reshape) -> Option<AST> {
                         // TODO -- preserve vect/parallel?
                         AST::For(
                             v1.clone(), Box::new(AST::For(
-                                v2.clone(), Box::new(inner_loop), Range::Between(0, factor.clone()), properties.clone()
-                            )), Range::All(), properties.clone()
+                                v2.clone(), Box::new(inner_loop), ForRange::Between(NumberOrHole::Number(0), factor.clone()), properties.clone()
+                            )), ForRange::All(), properties.clone()
                         )
                     )
                 } else {
@@ -129,7 +130,7 @@ fn can_apply(ast: &AST, reshape: &Reshape) -> Option<AST> {
                     if outer_variable == *v1 && inner_variable == *v2 {
                         Some(
                             AST::For(
-                                v.clone(), Box::new(inner_inner_loop), Range::All(), vec![]
+                                v.clone(), Box::new(inner_inner_loop), ForRange::All(), vec![]
                             )
                         )
                     } else {

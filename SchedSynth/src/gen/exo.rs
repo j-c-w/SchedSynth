@@ -52,7 +52,7 @@ impl TargetLower for ExoProgram {
 }
 
 impl TargetHoles for ExoProgram {
-    fn get_holes(&self) -> Vec<&dyn Hole> { vec![] }
+    fn get_holes(&self) -> Vec<Box<dyn Hole>> { vec![] }
 }
 
 impl ToString for ExoProgram {

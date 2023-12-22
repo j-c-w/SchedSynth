@@ -18,7 +18,7 @@ pub struct ExecutionResult {
 }
 
 pub fn best_schedule<T: Target>(opts: &Options, schedules: Vec<T>) -> T {
-    let mut options: Vec<T> = vec![];
+    let options: Vec<T> = vec![];
     let mut bindings: Vec<HoleBindingMap> = vec![];
 
     // make the directoyr opts.execution_dir if it doesn't exist

@@ -4,7 +4,7 @@ def producer:
       compute
 def consumer:
   parallel yo:
-    store producer
-    for yi in [0, 15]:
+    alloc producer
+    for yi in [0, ??]:
       compute producer
       compute
