@@ -30,9 +30,13 @@ pub struct Options {
     pub debug_split: bool,
     pub debug_reshape: bool,
     pub debug_execution: bool,
+    pub debug_opentuner: bool,
 
     pub debug_func_table: bool,
     pub debug_reorder_topo: bool,
+
+    // opentuner options
+    pub opentuner_timeout: i32,
 }
 
 pub fn parse_options() -> Options {
@@ -126,6 +130,18 @@ pub fn parse_options() -> Options {
 			.long("debug-reorder-topo")
 			.help("debug the reorder toposort pass")
 		)
+        .arg(
+            Arg::new("debug-opentuner")
+            .long("debug-opentuner")
+            .help("Debug the interface with opentuner")
+        )
+        .arg(
+            Arg::new("opentuner-timeout")
+            .long("opentuner-timeout")
+            .help("Debug the interface with opentuner")
+            .takes_value(true)
+            .default_value("30")
+        )
         .get_matches();
 
     // initialize to defaults
@@ -151,8 +167,11 @@ pub fn parse_options() -> Options {
         debug_split: args.is_present("debug-split"),
         debug_func_table: args.is_present("debug-func-table"),
         debug_execution: args.is_present("debug-execution"),
+        debug_opentuner: args.is_present("debug-opentuner"),
 
         debug_reorder_topo: args.is_present("debug-reorder-topo"),
+
+        opentuner_timeout: args.value_of("opentuner-timeout").unwrap().parse().expect("Opentuner timeout must be an integer"),
     };
 
     return opts;

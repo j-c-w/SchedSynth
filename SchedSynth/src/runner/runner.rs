@@ -33,10 +33,14 @@ pub fn best_schedule<T: Target>(opts: &Options, schedules: Vec<T>) -> T {
                 if !schedule.can_resolve_holes(opts)  {
                     panic!("Need to provide enough flags to be able to test the programs if there are holes for opentuner");
                 }
-                println!("Have opentuner holes, running opentuner");
+                if opts.debug_opentuner {
+                    println!("Have opentuner holes, running opentuner");
+                }
                 run_opentuner(opts, opentuner)
             } else {
-                println!("No opentuner holes, generating schedule...");
+                if opts.debug_opentuner {
+                    println!("No opentuner holes, generating schedule...");
+                }
                 // No opentuenr holes, skip.
                 HoleBindingMap {
                     map: HashMap::new()
@@ -105,7 +109,7 @@ class InstanceTuner(MeasurementInterface):
             print('Warning: Run failed with error ', e)
             return Result(time=999999999999)
 
-    def save_final_config(self):
+    def save_final_config(self, configuration):
         print (configuration.data)
 
     def compile_and_run(self, desired_result, input, limit):
@@ -161,13 +165,16 @@ fn run_opentuner(opts: &Options, opentuner_string: String) -> HoleBindingMap {
     let filename = opts.execution_dir.clone() + "/opentuner_run.py";
     // Write opentuner_string into filename.
 
-    println!("writing into file {}", filename.clone());
+    if opts.debug_opentuner {
+        println!("writing into file {}", filename.clone());
+    }
     let mut file = File::create(filename.clone()).unwrap();
     file.write_all(opentuner_string.as_bytes()).unwrap();
 
     // Run opentuner.
-    let output = Command::new("python3").arg(opts.execution_dir.clone() + "/opentuner_run.py")
+    let output = Command::new("python3")
         .arg(filename)
+        .arg("--stop-after=".to_owned() + &opts.opentuner_timeout.to_string())
         .output()
         .expect("failed to execute process");
 
@@ -176,8 +183,6 @@ fn run_opentuner(opts: &Options, opentuner_string: String) -> HoleBindingMap {
     let output_string = String::from_utf8_lossy(&output.stdout);
     let error_string = String::from_utf8_lossy(&output.stderr);
     let return_code = output.status.code().unwrap();
-
-    TODO --- Figure out why this doesn't call through to opentuner
 
     // Return the mappings
     // if the return code is not 0, then something went wrong --- need to inform
@@ -189,8 +194,10 @@ fn run_opentuner(opts: &Options, opentuner_string: String) -> HoleBindingMap {
 
     // Parse the output of opentuner.
 
-    println!("Output string is {}", output_string);
-    println!("Output error is {}", error_string);
+    if opts.debug_opentuner {
+        println!("Output string is {}", output_string);
+        println!("Output error is {}", error_string);
+    }
 
     mappings_from_opentuner_output(output_string.to_string())
 }
@@ -200,13 +207,20 @@ fn mappings_from_opentuner_output(output_string: String) -> HoleBindingMap {
     // name: value.
     // Put those into the map in a HoleBindingMap.
     let mut map = HashMap::<String, HoleValue>::new();
-    for line in output_string.lines() {
-        let parts: Vec<&str> = line.split(':').collect();
-        let name = parts[0].trim();
-        // TODO --- support more broadly.
-        let value: i32 = parts[1].trim().parse().unwrap();
-
-        map.insert(name.to_string(), HoleValue::IntHole(value));
+    let data = serde_json::from_str::<(String, String)>(&output_string);
+    // iterate over the json, creating a HoleValue to put 
+    // in the map for every element.
+    for (key, value) in data.iter() {
+        // check if value is an int
+        if let Ok(int_value) = value.parse::<i32>() {
+            // create a HoleValue with the int
+            let hole_value = HoleValue::IntHole(int_value);
+            // insert the HoleValue into the map
+            map.insert(key.to_string(), hole_value);
+        } else {
+            // todo -- support.
+            panic!("Result is non-int type")
+        }
     }
 
     HoleBindingMap { map: map }
