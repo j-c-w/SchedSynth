@@ -6,6 +6,7 @@ use crate::reshape::reshape::Reshape;
 use crate::ast::ast::Property;
 use crate::gen::target::TargetHoles;
 use crate::gen::target::Hole;
+use crate::options::options::Options;
 
 #[derive(Clone)]
 pub struct ExoFunc {
@@ -39,6 +40,10 @@ impl TargetGenerate for ExoProgram {
     fn generate(&self) -> String {
         return "".to_string()
     }
+
+    fn get_required_build_flags(&self, opts: &Options) -> Vec<String> {
+        vec![]
+    }
 }
 
 impl TargetLower for ExoProgram {
@@ -53,6 +58,7 @@ impl TargetLower for ExoProgram {
 
 impl TargetHoles for ExoProgram {
     fn get_holes(&self) -> Vec<Box<dyn Hole>> { vec![] }
+    fn can_resolve_holes(&self, opts: &Options) -> bool { true }
 }
 
 impl ToString for ExoProgram {

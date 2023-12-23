@@ -10,6 +10,7 @@ use std::collections::HashSet;
 use crate::shared::range_set::Range;
 use crate::shared::range_set::IntegerRangeSet;
 use crate::shared::range_set::TotalOrderRange;
+use crate::options::options::Options;
 
 #[derive(PartialEq,Clone,Copy)]
 pub enum Backend {
@@ -30,6 +31,13 @@ impl TargetGenerate for BackendInstance {
         match self {
             BackendInstance::Halide(hp) => hp.generate(),
             BackendInstance::Exo(ep) => ep.generate()
+        }
+    }
+
+    fn get_required_build_flags(&self, opts: &Options) -> Vec<String> {
+        match self {
+            BackendInstance::Halide(hp) => hp.get_required_build_flags(opts),
+            BackendInstance::Exo(ep) => ep.get_required_build_flags(opts)
         }
     }
 }
@@ -92,6 +100,13 @@ impl TargetHoles for BackendInstance {
             BackendInstance::Exo(ep) => ep.get_holes()
         }
     }
+
+    fn can_resolve_holes(&self, opts: &Options) -> bool {
+        match self {
+            BackendInstance::Halide(hp) => hp.can_resolve_holes(opts),
+            BackendInstance::Exo(ep) => ep.can_resolve_holes(opts)
+        }
+    }
 }
 
 pub fn newBackend(typ: Backend) -> BackendInstance {
@@ -107,14 +122,19 @@ pub trait CommandType: ToString {}
 
 pub trait TargetGenerate {
     fn generate(&self) -> String;
+    fn get_required_build_flags(&self, opts: &Options) -> Vec<String>;
 }
 
 pub trait TargetHoles {
     fn get_holes(&self) -> Vec<Box<dyn Hole>>;
+    // See if the correct flags were specified
+    // to enable building and profiling.  If not,
+    // then we can't resolve holes.
+    fn can_resolve_holes(&self, opts: &Options) -> bool;
 }
 
 pub trait Hole {
-    fn to_opentuner(&self) -> String;
+    fn to_opentuner(&self, manipulator_name: &String) -> String;
     fn get_name(&self) -> String;
     // TODO -- need a function to fill holes by name.
 }
@@ -131,11 +151,11 @@ pub enum HoleOption<T> {
 }
 
 impl<T: std::fmt::Display> Hole for HoleOption<T> {
- fn to_opentuner(&self) -> String {
+    fn to_opentuner(&self, manipulator_name: &String) -> String {
         match self {
             &HoleOption::Hole(ref name, ref set) => {
                 let mut s = String::new();
-                s.push_str(&format!("param.{} = hp.Choice('{}', [", name, name));
+                s.push_str(&format!("{}.add_parameter(Choice('{}', [", manipulator_name, name));
                 for (i, v) in set.iter().enumerate() {
                     s.push_str(&format!("{}", v));
                     if i < set.len() - 1 {
@@ -147,7 +167,7 @@ impl<T: std::fmt::Display> Hole for HoleOption<T> {
             },
             &HoleOption::IntHole(ref name, ref range) => {
                 let mut s = String::new();
-                s.push_str(&format!("param.{} = hp.UniformInteger('{}', {}, {})", name, name, range.min_elt(), range.max_elt()));
+                s.push_str(&format!("{}.add_parameter(IntegerParameter('{}', {}, {}))", manipulator_name, name, range.min_elt(), range.max_elt()));
                 s
             },
             &HoleOption::Value(ref v) => {
@@ -176,8 +196,8 @@ pub fn is_hole<T>(opt: &HoleOption<T>) -> bool {
 impl <T: std::fmt::Display> std::fmt::Display for HoleOption<T> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            HoleOption::Hole(name, _) => write!(f, "Hole({})", name),
-            HoleOption::IntHole(name, _) => write!(f, "Hole({})", name),
+            HoleOption::Hole(name, _) => write!(f, "{}", name),
+            HoleOption::IntHole(name, _) => write!(f, "{}", name),
             HoleOption::Value(value) => write!(f, "{}", value)
         }
     }

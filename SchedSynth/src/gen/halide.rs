@@ -11,6 +11,7 @@ use crate::reshape::reshape::Reshape;
 use crate::ast::ast::Property;
 
 use std::sync::Mutex;
+use std::path::Path;
 
 #[derive(Clone)]
 pub struct HFunc {
@@ -160,6 +161,35 @@ impl TargetHoles for HalideProgram {
         }
         holes
     }
+
+    fn can_resolve_holes(&self, opts: &Options) -> bool {
+        // check that we have all the information actually
+        // required to build the program.
+        // 
+        // Need to check that we have:
+        //  (a) halide_program set
+        //  (b) halide_dir set
+
+        // This doesn't do a full check --- so things could fail
+        // elsewhere --- would be better to do a truly complete check
+        // here (i.e. check that halid-dir has all the required
+        // files and that halide_program points to a currectly formatted
+        // file.
+
+        // check that opts.halide_dir (a string) is an existing folder
+        let halide_dir = Path::new(&opts.halide_dir);
+        if !halide_dir.exists() {
+            return false;
+        }
+
+        // check that opts.halide_program (a string) is an existing file
+        let halide_program = Path::new(&opts.halide_program);
+        if !halide_program.exists() {
+            return false;
+        }
+
+        return true;
+    }
 }
 
 #[derive(Clone)]
@@ -179,8 +209,8 @@ pub enum HalideHole {
 }
 
 impl Hole for HalideHole {
-    fn to_opentuner(&self) -> String {
-        "manipulator.add_parameter(IntegerParameter('x', 0, 10))".to_string()
+    fn to_opentuner(&self, manipulator_name: &String) -> String {
+        format!("{}.add_parameter(IntegerParameter('x', 0, 10))", manipulator_name)
     }
 
     fn get_name(&self) -> String {
@@ -191,6 +221,14 @@ impl Hole for HalideHole {
 impl TargetGenerate for HalideProgram {
     fn generate(&self) -> String {
         self.to_string()
+    }
+
+    fn get_required_build_flags(&self, opts: &Options) -> Vec<String> {
+        vec![
+            "-I".to_owned() + &opts.halide_dir + "/include",
+            "-L".to_owned() + &opts.halide_dir + "/lib",
+            "-lHalide".to_owned()
+        ]
     }
 }
 

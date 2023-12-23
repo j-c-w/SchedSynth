@@ -30,9 +30,13 @@ pub fn best_schedule<T: Target>(opts: &Options, schedules: Vec<T>) -> T {
         // Run the opentuner and get the best assignment of variables:
         let binding =
             if schedule.get_holes().len() > 0 {
+                if !schedule.can_resolve_holes(opts)  {
+                    panic!("Need to provide enough flags to be able to test the programs if there are holes for opentuner");
+                }
                 println!("Have opentuner holes, running opentuner");
                 run_opentuner(opts, opentuner)
             } else {
+                println!("No opentuner holes, generating schedule...");
                 // No opentuenr holes, skip.
                 HoleBindingMap {
                     map: HashMap::new()
@@ -73,6 +77,7 @@ from opentuner import MeasurementInterface
 from opentuner import Result
 
 defs = [ NAME_HOLE ]
+filename = \"FILE_NAME\"
 
 class InstanceTuner(MeasurementInterface):
     def manipulator(self):
@@ -81,12 +86,13 @@ class InstanceTuner(MeasurementInterface):
         return manipulator
 
     def compile(self, cfg, id):
-        gcc_cmd = 'g++'
+        gcc_cmd = 'g++ ' + filename + ' '
 
         for variable_def in defs:
-            gcc_cmd += '-D{0}=\"{1}\"'.format(variable_def, cfg[variable_def])
+            gcc_cmd += ' -D{0}=\"{1}\"'.format(variable_def, cfg[variable_def])
 
-        gcc_cmd += '-o tmp' + str(id) + '.bin'
+        gcc_cmd += ' -o tmp' + str(id) + '.bin'
+        gcc_cmd += ' EXTRA_BUILD_FLAGS'
 
         # run gcccmd
         os.system(gcc_cmd)
@@ -117,14 +123,35 @@ if __name__ == '__main__':
     let mut manipulator = "".to_string();
     let mut names = "".to_string();
     for hole in holes {
-        manipulator.push_str(&hole.to_opentuner());
+        manipulator.push_str(&hole.to_opentuner(&"manipulator".to_string()));
 
-        names.push_str(&hole.get_name());
+        names.push_str(&("\"".to_owned() + &hole.get_name() + "\""));
         names.push_str(", ");
     };
 
+    // Copy the file named by opts.halide_program into
+    // 'runnable.cpp'
+    let new_runnable_name = opts.execution_dir.clone() + "/runnable.cpp";
+    let mut new_runnable = File::create(&new_runnable_name).unwrap();
+    let mut orig_runnable = File::open(&opts.halide_program).unwrap();
+
+    // Replace the SCHED_CONTENT -- if 
+    let mut content = String::new();
+    orig_runnable.read_to_string(&mut content).unwrap();
+    // If SCHED_CONTENT is not in content, then panic
+    if !content.contains("SCHED_CONTENT") {
+        panic!("SCHED_CONTENT not found in {}.  You need to have a full template file with the defined behaviour where the generated schedule can be inserted (indicated by SCHED_CONTENT). ", &opts.halide_program);
+    }
+    // Generate the hole-y version and put it in the file.
+    let content_with_holes = content.replace("SCHED_CONTENT", &schedule.generate());
+    new_runnable.write_all(content_with_holes.as_bytes()).unwrap();
+
+    // Fill up the opentuner template above.
     let with_names = header.replace("NAME_HOLE", &names);
-    return with_names.replace("MANIPULATOR_HOLE", &manipulator);
+    let with_filename = with_names.replace("FILE_NAME", "runnable.cpp");
+    let flags = schedule.get_required_build_flags(opts).join(" ");
+    let with_flags = with_filename.replace("EXTRA_BUILD_FLAGS", &flags);
+    return with_flags.replace("MANIPULATOR_HOLE", &manipulator);
 }
 
 
@@ -147,7 +174,23 @@ fn run_opentuner(opts: &Options, opentuner_string: String) -> HoleBindingMap {
     // Parse the output of opentuner, which will give
     // us the mappings.
     let output_string = String::from_utf8_lossy(&output.stdout);
+    let error_string = String::from_utf8_lossy(&output.stderr);
+    let return_code = output.status.code().unwrap();
+
+    TODO --- Figure out why this doesn't call through to opentuner
+
+    // Return the mappings
+    // if the return code is not 0, then something went wrong --- need to inform
+    // programmer
+    if return_code != 0 {
+        println!("Error running opentuner: {}", error_string);
+        panic!();
+    }
+
+    // Parse the output of opentuner.
+
     println!("Output string is {}", output_string);
+    println!("Output error is {}", error_string);
 
     mappings_from_opentuner_output(output_string.to_string())
 }
@@ -222,8 +265,8 @@ fn create_runnable(opts: &Options, template_file: String, target_file: String, s
     let mut file = File::open(&template_file).expect(format!("Unable to open template file {}.  Use --halide-program to specify a template that can be filled by the scheduler", template_file).as_str());
     file.read_to_string(&mut template_contents).expect("Unable to read template file");
     let new_contents = template_contents.replace("SCHED_CONTENT", &schedule);
-    let mut file = File::create(&target_file).expect("Unable to create target file");
-    file.write_all(new_contents.as_bytes()).expect("Unable to write to target file");
+    let mut target_file = File::create(&target_file).expect("Unable to create target file");
+    target_file.write_all(new_contents.as_bytes()).expect("Unable to write to target file");
 }
 
 // Build the file C file using the Halide build command g++ test.c -I<opts.halide_dir>/include -L<opts.halide_dir>lib -lHalide -lpthread -ldl

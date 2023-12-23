@@ -81,7 +81,7 @@ fn process_factor(_opts: &Options, rule: Pair<Rule>) -> ASTNumberOrHole {
             // convert rule string into i32
 			let mut inner = rule.clone().into_inner();
 
-			if inner.len() == 1 {
+			if inner.len() <= 1 {
 				let factor_str = rule.as_span().as_str();
 				if factor_str == "??" {
                     ASTNumberOrHole::Hole(AnyIntegerSet())
@@ -91,7 +91,7 @@ fn process_factor(_opts: &Options, rule: Pair<Rule>) -> ASTNumberOrHole {
 				}
 			} else {
 				// This is a set
-				panic!("Unimplemented")
+				panic!("Unimplemented for {} ({})", rule.as_span().as_str(), inner.len())
 			}
         },
         Rule::factor => {
