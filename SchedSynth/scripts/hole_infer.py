@@ -107,7 +107,7 @@ def input_generator(n, holes=3):
     random.shuffle(input)
     for i in range(holes):
         remainder.append(input[i])
-        input[i] = None
+        input[i] = 'hole'
     random.shuffle(input)
 
     return input, remainder
@@ -115,10 +115,16 @@ def input_generator(n, holes=3):
 def get_variables_from(var_list):
     res = []
     for var in var_list:
-        if var is not None:
+        if not_hole(var):
             res.append(var)
 
     return res
+
+def hole(h):
+    return h == 'hole' or h == 'single_hole'
+
+def not_hole(h):
+    return not hole(h)
 
 def ilp_insert(input_list, hole_fills, target_list):
     variables_list = sorted(get_variables_from(input_list) + get_variables_from(hole_fills))
@@ -148,7 +154,6 @@ def ilp_insert(input_list, hole_fills, target_list):
 
         # Add the overall constrait that the var can only be in one
         # location.
-        
         prob += (sum(var_locations) == 1)
 
         # compute
@@ -164,6 +169,7 @@ def ilp_insert(input_list, hole_fills, target_list):
     # Add constraints from the non-hole locations
     last_specified = None
     last_non_none = None
+
     for i, inp in enumerate(input_list):
         position_var_index = None
         try:
@@ -171,10 +177,10 @@ def ilp_insert(input_list, hole_fills, target_list):
         except:
             pass
         # this is the start: tie the input to the start
-        if i == 0 and inp is not None:
+        if i == 0 and not_hole(inp):
             # get the index of this in the variables_list.
             prob += (location_indicators[position_var_index][0] == 1)
-        if i == len(input_list) - 1 and inp is not None:
+        if i == len(input_list) - 1 and not_hole(inp):
             prob += (position_variables[position_var_index] == len(input_list))
 
         # If the last one was not a none then need to link these
@@ -190,6 +196,60 @@ def ilp_insert(input_list, hole_fills, target_list):
         if position_var_index is not None:
             last_non_none = position_var_index
         
+
+    # Add constraits around fixed-sized holes.  We look for the following patterns
+    # that add constraints. (one ? == fixed sized hole, ?? == variable sized hole)
+    # ?, ?, ..., X, ... : (fixed number of holes tied to input) (X == 2)
+    # ..., X, ?, ?: (fixed number of holes tied to output) (X == len - 2)
+    # X, ?, ?, Y: (fixed number of holes between variables (X == Y - 2)
+    # X, ?, ?, ??, Y: (fixed number of holes between variables with additional unfixed
+    # holes. (X <= Y - 2)
+    fixed_count_from_input = 0 # first case
+    fixed_count_to_output = 0 # second case
+    fixed_count_between_variables = 0 # third case
+    minimim_count_between_variables = 0 # fourth case
+    last_fixed_variable = None
+    for i, inp in enumerate(input_list):
+        if inp == 'hole':
+            fixed_count_from_input = None
+            fixed_count_to_output = None
+            fixed_count_between_variables = None
+        elif inp == 'single_hole':
+            if fixed_count_to_output is None:
+                fixed_count_to_output = 1
+            else:
+                fixed_count_to_output += 1
+            if fixed_count_from_input is not None:
+                fixed_count_from_input += 1
+            if fixed_count_between_variables is not None:
+                fixed_count_between_variables += 1
+            minimim_count_between_variables += 1
+        else:
+            # this is a variable.  check the counters; if nessecary add
+            # constraints as appropriate. and reset the counters.
+            if fixed_count_from_input is not None:
+                # fix this the right distance from the start
+                prob += (location_indicators[i][fixed_count_from_input] == 1)
+            if fixed_count_between_variables is not None and last_fixed_variable is not None and fixed_count_between_variables > 0:
+                breakpoint()
+                # need to add one to account for this variable (otherwise we are just
+                # putting things next to each other)
+                prob += (position_variables[last_fixed_variable] == (position_variables[i] - (fixed_count_between_variables + 1)) )
+            elif minimim_count_between_variables is not None and last_fixed_variable is not None and minimim_count_between_variables > 0:
+                # only specify the minimum count if the fixed count
+                # isn't set.
+                prob += ( position_variables[last_fixed_variable] >= (position_variables[i] - (minimim_count_between_variables + 1)) )
+
+            # reset counters
+            last_fixed_variable = i
+            fixed_count_from_input = None # no longer needed after first var
+            fixed_count_to_output = 0 #reset this
+            fixed_count_between_variables = 0 #reset this
+            minimim_count_between_variables = 0 # reset this
+
+    if fixed_count_to_output is not None and last_fixed_variable is not None and fixed_count_to_output > 0:
+        # Fix this variable to the output
+        prob += (location_indicators[last_fixed_variable][len(target) - 1 - fixed_count_to_output] == 1)
 
     # Variables for the overall score from locations in the target list
     score_variables = []
@@ -346,7 +406,6 @@ def in_order_insert(input_list, hole_fills, target_list):
 # aim of this algorithm is like a partial bubble-sort
 # Example where this doesn't work is For input  [None, 4, None, 2, 1, None]
 # gets stuck on [3, 4, 2, 1, 5, 6] (local maximum)
-
 def swap_alg(inputs, fills, target):
     print("Looking at ", inputs)
     def join(blocks):
@@ -419,12 +478,16 @@ def parse_inputs(input_string, num_elements):
     input_list = []
 
     for elt in x:
-        if elt:
+        if elt == 'hole':
+            loop_num = 'hole'
+        elif elt == 'single_hole':
+            loop_num = 'single_hole'
+        elif elt:
             # parse into number
             loop_num = int(elt)
         else:
-            # this is a hole
-            loop_num = None
+            print("Warning, unexpected loop elt ", elt)
+            raise Error()
         input_list.append(loop_num)
 
     target_list = list(range(1, num_elements + 1))
@@ -444,7 +507,7 @@ if __name__ == "__main__":
     parser.add_argument("--size-test", default=None, dest='size_test', type=int) # just run problems of size X
     parser.add_argument("--size-test-holes", default=3, dest='size_test_holes', type=int) # number of holes to use when size testing
 
-    parser.add_argument('target_order', help='input order, comma separated. It is assumed that the input is just a string of numbers increasing in size.  This should be comman-separated. Holes are indicated by blank spaces between commas')
+    parser.add_argument('target_order', help='input order, comma separated. It is assumed that the input is just a string of numbers increasing in size.  This should be comman-separated. Holes are indicated by "hole" or "single_hole" (to specify variable size holes or individual sized holes)')
     parser.add_argument('max_element', help='how many loop nests to include in the tareget list', type=int)
 
     args = parser.parse_args()
