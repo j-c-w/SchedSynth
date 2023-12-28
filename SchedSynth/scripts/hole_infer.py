@@ -1,6 +1,5 @@
 # order
 import pulp as p
-import pyomo.environ as pe
 import json
 import argparse
 
@@ -344,6 +343,77 @@ def in_order_insert(input_list, hole_fills, target_list):
 
     return final_fills
 
+# aim of this algorithm is like a partial bubble-sort
+# Example where this doesn't work is For input  [None, 4, None, 2, 1, None]
+# gets stuck on [3, 4, 2, 1, 5, 6] (local maximum)
+
+def swap_alg(inputs, fills, target):
+    print("Looking at ", inputs)
+    def join(blocks):
+        res = []
+        for b in blocks:
+            for elt in b:
+                if elt is not None:
+                    res.append(elt)
+        return res
+
+    # block this list differently.
+    # the aim is to put things together
+    # in blocks that cannot be shuffled internally.
+    blocked_inputs = []
+    block = []
+    fills_added = False
+    for inp in inputs:
+        if inp is None:
+            # if we have a block, put that in.
+            if len(block) > 0:
+                blocked_inputs.append(block + [None])
+                block = []
+            # put all the fills required in the first spot for them.
+            if not fills_added:
+                for fill in fills:
+                    blocked_inputs.append([fill])
+                fills_added = True
+        else: # inp is not none --- create a block with this elt.
+            block.append(inp)
+    if len(block) > 0:
+        blocked_inputs.append(block + [None])
+
+    tied_at_start = inputs[0] is not None
+    tied_at_end = inputs[-1] is not None
+
+    def can_swap(i, j):
+        if i >= len(blocked_inputs) or j >= len(blocked_inputs):
+            return False
+        if len(blocked_inputs[i]) > 1 and len(blocked_inputs[j]) > 1:
+            # these are groups of variables
+            return False
+        if i == 0 and tied_at_start:
+            return False
+        if j == len(blocked_inputs) - 1 and tied_at_end:
+            return False
+        return True
+        
+
+    # now, do bubble-sort while things change
+    changed = True
+    while changed:
+        changed = False
+        for i in range(0, len(blocked_inputs)):
+            current_score = edit_distance(join(blocked_inputs), target)
+            if can_swap(i, i + 1):
+                blocked_inputs[i], blocked_inputs[i + 1] = blocked_inputs[i + 1], blocked_inputs[i]
+                next_score = edit_distance(join(blocked_inputs), target)
+
+                if next_score < current_score:
+                    print("Changed (", current_score, next_score, ")")
+                    changed = True
+                else:
+                    # unswap
+                    blocked_inputs[i], blocked_inputs[i + 1] = blocked_inputs[i + 1], blocked_inputs[i]
+    return join(blocked_inputs)
+
+
 def parse_inputs(input_string, num_elements):
     x = input_string.split(',')
     input_list = []
@@ -418,6 +488,9 @@ if __name__ == "__main__":
         ilp_result = ilp_insert(input_list, hole_fills, target)
         ilp_score = edit_distance(ilp_result[:], target)
 
+        swap_alg_result = swap_alg(input_list, hole_fills, target)
+        swap_alg_score = edit_distance(swap_alg_result[:], target)
+
         # use the in_order_insert algorithm
         fills = in_order_insert(input_list, hole_fills, target)
         alg_opt = fill_holes(input_list[:], fills)
@@ -435,3 +508,5 @@ if __name__ == "__main__":
         print("Alg score is ", alg_dist)
         print("Alg config was ", alg_opt)
 
+        print("Swap alg score is ", swap_alg_score)
+        print("Swap alg result is ", swap_alg_result)
