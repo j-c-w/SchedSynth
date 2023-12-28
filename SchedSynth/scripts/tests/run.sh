@@ -15,7 +15,7 @@ reshapes=${file}_reshapes
 
 dir=$PWD
 cd ../..
-cargo run $dir/$orig $dir/$targ $dir/$reshapes $dir/${file}_sched_output
+cargo run $dir/$orig $dir/$targ $dir/$reshapes $dir/${file}_sched_output --halide-program $dir/${file}_generated.c --halide-dir $PWD/scripts/halide/
 
 # Now, put this into the generated file:
 sed -e "/SCHED_CONTENT/ {

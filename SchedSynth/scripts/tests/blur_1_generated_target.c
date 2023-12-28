@@ -31,7 +31,7 @@ int main(int argc, char **argv) {
 	/* producer.compute_at(consumer, yi); */
 	/* // Also vectorize the producer (because sin is vectorizable on x86 using SSE). */
 	/* producer.vectorize(x, 4); */
-consumer.split(y, yo, yi, 16);
+consumer.split(y, yo, yi, hole_1);
 consumer.split(x, xo, xi, 4);
 producer.compute_at(consumer, yi);
 producer.store_at(consumer, yo);

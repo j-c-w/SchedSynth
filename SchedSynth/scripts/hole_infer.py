@@ -2,6 +2,7 @@
 import pulp as p
 import pyomo.environ as pe
 import json
+import argparse
 
 def edit_distance(s1, s2):
     def less_than(e1, e2):
@@ -96,9 +97,8 @@ def all_options(input_list, hole_fills):
 
 target = [1,2,3,4,5,6]
 
-def input_generator(n):
+def input_generator(n, holes=3):
     import random
-    holes = random.randint(0, n)
 
     input = [i for i in range(1, n + 1)]
     remainder =  []
@@ -344,39 +344,94 @@ def in_order_insert(input_list, hole_fills, target_list):
 
     return final_fills
 
-input_list, hole_fills = input_generator(6)
-# input_list = [None, 1, None, None, 2, 6]
-# hole_fills = [3,4,5]
-opts = all_options(input_list, hole_fills)
+def parse_inputs(input_string, num_elements):
+    x = input_string.split(',')
+    input_list = []
 
-# Get the min of all options
-min_index = None
-min_score = 1000000000000
-print("Have ", len(opts), "options")
-print("Have ", len(hole_fills), "holes")
-for i, opt in enumerate(opts):
-    dis = edit_distance(opt[:], target)
-    if dis < min_score:
-        min_score = dis
-        min_index = i
+    for elt in x:
+        if elt:
+            # parse into number
+            loop_num = int(elt)
+        else:
+            # this is a hole
+            loop_num = None
+        input_list.append(loop_num)
 
-ilp_result = ilp_insert(input_list, hole_fills, target)
-ilp_score = edit_distance(ilp_result[:], target)
+    target_list = list(range(1, num_elements + 1))
 
-# use the in_order_insert algorithm
-fills = in_order_insert(input_list, hole_fills, target)
-alg_opt = fill_holes(input_list[:], fills)
-alg_dist = edit_distance(alg_opt[:], target)
+    # calculate the hole fills, which are all the elemtns in one list but not
+    # the other.
+    hole_fills = []
+    for elt in target_list:
+        if elt not in input_list:
+            hole_fills.append(elt)
 
-print("For input ", input_list)
-print("Target ", target)
+    return input_list, hole_fills, target_list
 
-print("Min score is ", min_score)
-print("Min config was ", opts[min_index])
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--test", default=False, action='store_true') # compare all the different strategies
+    parser.add_argument("--size-test", default=None, dest='size_test', type=int) # just run problems of size X
+    parser.add_argument("--size-test-holes", default=3, dest='size_test_holes', type=int) # number of holes to use when size testing
 
-print("ILP Score is ", ilp_score)
-print("ILP result is ", ilp_result)
+    parser.add_argument('target_order', help='input order, comma separated. It is assumed that the input is just a string of numbers increasing in size.  This should be comman-separated. Holes are indicated by blank spaces between commas')
+    parser.add_argument('max_element', help='how many loop nests to include in the tareget list', type=int)
 
-print("Alg score is ", alg_dist)
-print("Alg config was ", alg_opt)
+    args = parser.parse_args()
+
+    if args.size_test is None and not args.test:
+        # Run normally
+        input_list, hole_fills, target = parse_inputs(args.target_order, args.max_element)
+        print("Running for ", input_list)
+        print("With hole fills ", hole_fills)
+
+        # run ilp solver
+        result = ilp_insert(input_list, hole_fills, target)
+        print("ILP Result is ", result)
+        ilp_score = edit_distance(result[:], target)
+        print("ILP Score is (lower is better) ", ilp_score)
+
+    if args.size_test is not None:
+        input_list, hole_fills = input_generator(args.size_test, holes=args.size_test_holes)
+        target = range(1, args.size_test + 1)
+        ilp_result = ilp_insert(input_list, hole_fills, target)
+        print("Input is ", input_list)
+        print("ILP Result is ", ilp_result)
+
+    if args.test:
+        input_list, hole_fills = input_generator(6)
+        # input_list = [None, 1, None, None, 2, 6]
+        # hole_fills = [3,4,5]
+        opts = all_options(input_list, hole_fills)
+
+        # Get the min of all options
+        min_index = None
+        min_score = 1000000000000
+        print("Have ", len(opts), "options")
+        print("Have ", len(hole_fills), "holes")
+        for i, opt in enumerate(opts):
+            dis = edit_distance(opt[:], target)
+            if dis < min_score:
+                min_score = dis
+                min_index = i
+
+        ilp_result = ilp_insert(input_list, hole_fills, target)
+        ilp_score = edit_distance(ilp_result[:], target)
+
+        # use the in_order_insert algorithm
+        fills = in_order_insert(input_list, hole_fills, target)
+        alg_opt = fill_holes(input_list[:], fills)
+        alg_dist = edit_distance(alg_opt[:], target)
+
+        print("For input ", input_list)
+        print("Target ", target)
+
+        print("Min score is ", min_score)
+        print("Min config was ", opts[min_index])
+
+        print("ILP Score is ", ilp_score)
+        print("ILP result is ", ilp_result)
+
+        print("Alg score is ", alg_dist)
+        print("Alg config was ", alg_opt)
 

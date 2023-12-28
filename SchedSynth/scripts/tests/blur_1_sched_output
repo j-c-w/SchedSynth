@@ -1,4 +1,4 @@
-consumer.split(y, yo, yi, 16);
+consumer.split(y, yo, yi, hole_1);
 consumer.split(x, xo, xi, 4);
 producer.compute_at(consumer, yi);
 producer.store_at(consumer, yo);

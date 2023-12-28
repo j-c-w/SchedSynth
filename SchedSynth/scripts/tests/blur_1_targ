@@ -3,8 +3,7 @@ def producer:
     vectorized xi in [0, 3]:
       compute
 def consumer:
-  parallel yo:
+  ??:
     alloc producer
-    for yi in [0, ??]:
-      compute producer
-      compute
+    for yi in [0, 15]:
+      ??
