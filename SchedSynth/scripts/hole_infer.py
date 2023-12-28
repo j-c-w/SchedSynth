@@ -1,0 +1,382 @@
+# order
+import pulp as p
+import pyomo.environ as pe
+import json
+
+def edit_distance(s1, s2):
+    def less_than(e1, e2):
+        e1_ind = s2.index(e1)
+        e2_ind = s2.index(e2)
+
+        return e1_ind < e2_ind
+
+    # Now bubble sort using this less_than
+    # counting the number of swap
+    swap_count = 0
+    for index in range(len(s1)):
+        for j in range(index + 1, len(s1)):
+            if less_than(s1[j], s1[index]):
+                s1[index], s1[j] = s1[j], s1[index]
+                swap_count += 1
+
+    # print("Swapped ", s1, "target", s2)
+    return swap_count
+
+# get permutations of the list
+def permutations(l):
+    if len(l) == 0:
+        return []
+    if len(l) == 1:
+        return [l]
+    lst = []
+    for i in range(len(l)):
+        m = l[i]
+        remLst = l[:i] + l[i+1:]
+        for p in permutations(remLst):
+            lst.append([m] + p)
+    return lst
+
+# get all the different ways to split the list l
+# into n sublists
+def splits(l, n):
+    # base case
+    if n < 1:
+        print("Can't negative split!")
+        raise error
+    if n == 1:
+        return [[l]]
+    # recursive case
+    else:
+        result = []
+        for i in range(len(l)):
+            # split the list into two parts
+            part1 = l[:i]
+            part2 = l[i:]
+            # recursively split the second part
+            for sublist in splits(part2, n-1):
+                this_list = []
+                result.append([part1] + sublist)
+        return result
+
+def fill_holes(l, fills):
+    res = []
+    fill_index = 0
+
+    for elem in l:
+        if elem is not None:
+            res.append(elem)
+        else:
+            res += fills[fill_index]
+            fill_index += 1
+    return res
+
+def print_grid(l, size):
+    for i in range(size):
+        for j in range(size):
+            print(p.value(l[i][j]), end=",")
+        print("")
+
+def all_options(input_list, hole_fills):
+    # Go through the input_list and find every permutation
+    # of holes that can fill the holes in the input list.
+    hole_indexes = [i for i in range(len(input_list)) if input_list[i] is None]
+    if len(hole_indexes) == 0:
+        print("Nothing to fill")
+        return []
+    permuted_fills = permutations(hole_fills)
+    fills_to_use = []
+    for perm in permuted_fills:
+        fills_to_use += splits(perm, len(hole_indexes))
+
+    options = []
+    for fill in fills_to_use:
+        options.append(fill_holes(input_list, fill))
+
+    return options
+
+target = [1,2,3,4,5,6]
+
+def input_generator(n):
+    import random
+    holes = random.randint(0, n)
+
+    input = [i for i in range(1, n + 1)]
+    remainder =  []
+
+    # shuffle, put the holes at the beginning, then
+    # shuffle at the end
+    random.shuffle(input)
+    for i in range(holes):
+        remainder.append(input[i])
+        input[i] = None
+    random.shuffle(input)
+
+    return input, remainder
+
+def get_variables_from(var_list):
+    res = []
+    for var in var_list:
+        if var is not None:
+            res.append(var)
+
+    return res
+
+def ilp_insert(input_list, hole_fills, target_list):
+    variables_list = sorted(get_variables_from(input_list) + get_variables_from(hole_fills))
+    prob = p.LpProblem('Problem', p.LpMinimize)
+
+    # Two types of variables: one for each position/variable pair, that are
+    # binary variables.
+    # Other type is the index variable for each variable in the variable
+    # list that specify the location of the variables.
+    location_indicators = []
+    position_variables = []
+    vnames = []
+    for var in variables_list:
+        varname = "Var" + str(var)
+        var_locations = []
+        # compute the indiicators -- vari is 1 if var is placed
+        # at position i.
+        for i, target_location in enumerate(target_list):
+            position_indicator = p.LpVariable(str(varname) + "_" + str(i + 1), lowBound=0, cat='Integer')
+            vnames.append(str(varname) + "_" + str(i + 1))
+            var_locations.append(position_indicator)
+
+            prob += position_indicator <= 1
+            prob += position_indicator >= 0
+
+        location_indicators.append(var_locations)
+
+        # Add the overall constrait that the var can only be in one
+        # location.
+        
+        prob += (sum(var_locations) == 1)
+
+        # compute
+        vnames.append(varname)
+        position_var = p.LpVariable(str(varname), lowBound=0, cat='Integer')
+        position_variables.append(position_var)
+        prob += position_var == sum([(i + 1) * var_locations[i] for i in range(len(var_locations))])
+
+    # Add constraints that every location has at most one variable.
+    for j in range(len(variables_list)):
+        prob += sum([location_indicators[i][j] for i in range(len(location_indicators))]) == 1
+
+    # Add constraints from the non-hole locations
+    last_specified = None
+    last_non_none = None
+    for i, inp in enumerate(input_list):
+        position_var_index = None
+        try:
+            position_var_index = variables_list.index(inp)
+        except:
+            pass
+        # this is the start: tie the input to the start
+        if i == 0 and inp is not None:
+            # get the index of this in the variables_list.
+            prob += (location_indicators[position_var_index][0] == 1)
+        if i == len(input_list) - 1 and inp is not None:
+            prob += (position_variables[position_var_index] == len(input_list))
+
+        # If the last one was not a none then need to link these
+        # together
+        if last_specified is not None and position_var_index is not None:
+            prob += ((position_variables[last_specified] + 1) == position_variables[position_var_index])
+        elif position_var_index is not None and last_non_none is not None:
+            # tie together the vars, but in a looser way that allows
+            # for stuff in-between.
+            prob += ((position_variables[last_non_none]) <= position_variables[position_var_index])
+
+        last_specified = position_var_index
+        if position_var_index is not None:
+            last_non_none = position_var_index
+        
+
+    # Variables for the overall score from locations in the target list
+    score_variables = []
+    for i, variable in enumerate(target_list):
+        # Get the index of the variable in the array.
+        list_index = variables_list.index(variable)
+
+        this_position_variable = position_variables[list_index]
+        position_variable_difference = p.LpVariable("Var" + str(variable) + "_Difference", cat='Integer')
+        prob += position_variable_difference == ((i + 1) - this_position_variable)
+
+        score_variables.append(position_variable_difference)
+
+    # We need to optimize wrt. the absolute value, so need to do this odd hack to do
+    # that.
+    u_variables = []
+    for var in score_variables:
+        u_var = p.LpVariable("UVar_" + str(var), cat='Integer')
+        prob += -u_var <= var
+        prob += var <= u_var
+        u_variables.append(u_var)
+
+    # Need to set up these indicators -- they allow the multiplications below.
+    ## These indiciators start at 1, and decrease to 0 when the variable
+    ## has been set.
+
+    ### basically, this is (last_cell - location_indicator)
+    decreasing_indicators = []
+    ## This is the opposite --- set to 1 - decerasing_indicators.
+    increasing_indicators = []
+    for i, var in enumerate(variables_list):
+        dec_indicators = []
+        inc_indicators = []
+        last_var = 1
+        for j in range(len(variables_list)):
+            dec_indicator = p.LpVariable("Var" + str(var) + "_DecreasingIndicator" + str(j), cat='Integer')
+            inc_indicator = p.LpVariable("Var" + str(var) + "_IncreasingIndicator" + str(j), cat='Integer')
+            prob += (dec_indicator == (last_var - location_indicators[i][j]))
+            prob += (inc_indicator == (1 - dec_indicator))
+            last_var = dec_indicator # keep track of de indicators
+
+            dec_indicators.append(dec_indicator)
+            inc_indicators.append(inc_indicator)
+
+        decreasing_indicators.append(dec_indicators)
+        increasing_indicators.append(inc_indicators)
+
+    # Work out the number of swaps required: this is one swap for every inverted-pair.
+    # We use the indicator variables for this: summing 
+    # everything 'below' and 'to the left' of each variable
+    # (that's the things that are 'greater' and 'in the wrong place')
+    swaps = []
+    individual_swap_count = []
+    # tracker variable for debugging
+    for i, var in enumerate(position_variables):
+        # see if this variable has any out-of-position
+        swap_total_variable = p.LpVariable("Var" + str(var) + "_SwapCount", cat='Integer')
+        swap_count_list = []
+
+        # j iterates over vars
+        for j in range(len(location_indicators)):
+            # k over positions
+            for k in range(len(location_indicators[j])):
+                swap_var_indicator = p.LpVariable("Var" + str(var) + "_SwapAt_" + str(j) + "-" + str(k), cat='Integer')
+                # needed if both location_indicator and the inc/dec are 0
+                prob += swap_var_indicator >= 0
+
+                # Use big-M approach--- but M == 1 is what we need here since
+                # both the indicator variables are either 0 or 1
+                if j > i:
+                    prob += ( swap_var_indicator <= location_indicators[j][k] )
+                    prob += ( swap_var_indicator <= decreasing_indicators[i][k] )
+                    prob += ( swap_var_indicator >= location_indicators[j][k] - (1 - decreasing_indicators[i][k]) )
+                if j < i:
+                    prob += ( swap_var_indicator <= location_indicators[j][k] )
+                    prob += ( swap_var_indicator <= increasing_indicators[i][k] )
+                    prob += ( swap_var_indicator >= location_indicators[j][k] - (1 - increasing_indicators[i][k]) )
+
+                swap_count_list.append(swap_var_indicator)
+
+        prob += swap_total_variable == sum(swap_count_list)
+        swaps.append(swap_total_variable)
+        individual_swap_count.append(swap_count_list)
+
+    # Objective to minimize this
+    # prob += sum(u_variables) ## this one minimizes average distance, but produces
+    ## some odd results
+    prob += sum(swaps) ## minimize the number of swaps
+    # Get the location:
+    status = prob.solve()
+    # prob.toJson('output.json')
+    # with open('output.json', 'r') as f:
+    #     j = json.load(f)
+    # with open('output.json', 'w') as f:
+    #     f.write(json.dumps(j, indent=1))
+    result = [None] * len(position_variables)
+    # for i, position in enumerate(swaps):
+    #     print("variable " +str(i + 1) + " has seaps:", p.value(position))
+    for i, position in enumerate(position_variables):
+        # print("variable " +str(i + 1) + " has location:", p.value(position))
+        result[int(p.value(position)) - 1] = i + 1
+
+    # for i in range(len(location_indicators)):
+    #     print("Var " + str(i + 1) + ":", end="")
+    #     for j in range(len(location_indicators)):
+    #         print(p.value(location_indicators[i][j]), end=", ")
+    #     print("")
+    return result
+
+
+def in_order_insert(input_list, hole_fills, target_list):
+    # Put the hole_fills in the order of the target_list.
+    ordered_hole_fills = []
+    fill_locations = []
+    for i, target in enumerate(target_list):
+        if target in hole_fills:
+            ordered_hole_fills.append(target)
+            fill_locations.append(i)
+
+    # Now, put everything in the hole closest to it.
+    hole_locations = []
+    for i, inp in enumerate(input_list):
+        if inp is None:
+            hole_locations.append(i)
+    hole_locations.append(10000000) # extra number on the end to 
+    # make rnage checks below simpler.
+
+    # Put everything in the hole nearest the hole location
+    # we're interested in.
+    hole_index = 0
+    final_fills = []
+    fills_in_this_hole = []
+    for i, fill in enumerate(fill_locations):
+        # relative distances of this hole from the final location
+        dist_this = abs(hole_locations[hole_index] - fill)
+        dist_next = abs(hole_locations[hole_index + 1] - fill)
+
+        # relative distances of the elements in the hole that
+        # will be pushed closer or further from their final location.
+
+        if dist_this < dist_next:
+            fills_in_this_hole.append(ordered_hole_fills[i])
+        else:
+            final_fills.append(fills_in_this_hole)
+            fills_in_this_hole = [ordered_hole_fills[i]]
+            hole_index += 1
+
+    final_fills.append(fills_in_this_hole)
+    while len(final_fills) < len(hole_locations) - 1:
+        final_fills.append([])
+
+    return final_fills
+
+input_list, hole_fills = input_generator(6)
+# input_list = [None, 1, None, None, 2, 6]
+# hole_fills = [3,4,5]
+opts = all_options(input_list, hole_fills)
+
+# Get the min of all options
+min_index = None
+min_score = 1000000000000
+print("Have ", len(opts), "options")
+print("Have ", len(hole_fills), "holes")
+for i, opt in enumerate(opts):
+    dis = edit_distance(opt[:], target)
+    if dis < min_score:
+        min_score = dis
+        min_index = i
+
+ilp_result = ilp_insert(input_list, hole_fills, target)
+ilp_score = edit_distance(ilp_result[:], target)
+
+# use the in_order_insert algorithm
+fills = in_order_insert(input_list, hole_fills, target)
+alg_opt = fill_holes(input_list[:], fills)
+alg_dist = edit_distance(alg_opt[:], target)
+
+print("For input ", input_list)
+print("Target ", target)
+
+print("Min score is ", min_score)
+print("Min config was ", opts[min_index])
+
+print("ILP Score is ", ilp_score)
+print("ILP result is ", ilp_result)
+
+print("Alg score is ", alg_dist)
+print("Alg config was ", alg_opt)
+
