@@ -136,8 +136,13 @@ def ilp_insert(input_list, hole_fills, target_list):
     # list that specify the location of the variables.
     location_indicators = []
     position_variables = []
+
+    # map from a variable name to a location in the variables list
+    # (and therefore the location and position maps)
+    index_map = {}
     vnames = []
-    for var in variables_list:
+    for index, var in enumerate(variables_list):
+        index_map[var] = index
         varname = "Var" + str(var)
         var_locations = []
         # compute the indiicators -- vari is 1 if var is placed
@@ -172,16 +177,14 @@ def ilp_insert(input_list, hole_fills, target_list):
 
     for i, inp in enumerate(input_list):
         position_var_index = None
-        try:
-            position_var_index = variables_list.index(inp)
-        except:
-            pass
+        if not_hole(inp):
+            position_var_index = index_map[inp]
         # this is the start: tie the input to the start
         if i == 0 and not_hole(inp):
             # get the index of this in the variables_list.
             prob += (location_indicators[position_var_index][0] == 1)
         if i == len(input_list) - 1 and not_hole(inp):
-            prob += (position_variables[position_var_index] == len(input_list))
+            prob += (position_variables[position_var_index] == len(target_list))
 
         # If the last one was not a none then need to link these
         # together
@@ -210,6 +213,11 @@ def ilp_insert(input_list, hole_fills, target_list):
     minimim_count_between_variables = 0 # fourth case
     last_fixed_variable = None
     for i, inp in enumerate(input_list):
+        if not_hole(inp):
+            position_index = index_map[inp]
+        else:
+            position_index = None
+
         if inp == 'hole':
             fixed_count_from_input = None
             fixed_count_to_output = None
@@ -229,19 +237,18 @@ def ilp_insert(input_list, hole_fills, target_list):
             # constraints as appropriate. and reset the counters.
             if fixed_count_from_input is not None:
                 # fix this the right distance from the start
-                prob += (location_indicators[i][fixed_count_from_input] == 1)
+                prob += (location_indicators[position_index][fixed_count_from_input] == 1)
             if fixed_count_between_variables is not None and last_fixed_variable is not None and fixed_count_between_variables > 0:
-                breakpoint()
                 # need to add one to account for this variable (otherwise we are just
                 # putting things next to each other)
-                prob += (position_variables[last_fixed_variable] == (position_variables[i] - (fixed_count_between_variables + 1)) )
+                prob += (position_variables[last_fixed_variable] == (position_variables[position_index] - (fixed_count_between_variables + 1)) )
             elif minimim_count_between_variables is not None and last_fixed_variable is not None and minimim_count_between_variables > 0:
                 # only specify the minimum count if the fixed count
                 # isn't set.
-                prob += ( position_variables[last_fixed_variable] >= (position_variables[i] - (minimim_count_between_variables + 1)) )
+                prob += ( position_variables[last_fixed_variable] <= (position_variables[position_index] - (minimim_count_between_variables + 1)) )
 
             # reset counters
-            last_fixed_variable = i
+            last_fixed_variable = position_index
             fixed_count_from_input = None # no longer needed after first var
             fixed_count_to_output = 0 #reset this
             fixed_count_between_variables = 0 #reset this
@@ -249,13 +256,14 @@ def ilp_insert(input_list, hole_fills, target_list):
 
     if fixed_count_to_output is not None and last_fixed_variable is not None and fixed_count_to_output > 0:
         # Fix this variable to the output
-        prob += (location_indicators[last_fixed_variable][len(target) - 1 - fixed_count_to_output] == 1)
+        # Don't + 1 here because there's a 
+        prob += (position_variables[last_fixed_variable] == (len(target) - 1) - fixed_count_to_output)
 
     # Variables for the overall score from locations in the target list
     score_variables = []
     for i, variable in enumerate(target_list):
         # Get the index of the variable in the array.
-        list_index = variables_list.index(variable)
+        list_index = index_map[variable]
 
         this_position_variable = position_variables[list_index]
         position_variable_difference = p.LpVariable("Var" + str(variable) + "_Difference", cat='Integer')
@@ -349,7 +357,7 @@ def ilp_insert(input_list, hole_fills, target_list):
     # for i, position in enumerate(swaps):
     #     print("variable " +str(i + 1) + " has seaps:", p.value(position))
     for i, position in enumerate(position_variables):
-        # print("variable " +str(i + 1) + " has location:", p.value(position))
+        print("variable " +str(i + 1) + " has location:", p.value(position))
         result[int(p.value(position)) - 1] = i + 1
 
     # for i in range(len(location_indicators)):
