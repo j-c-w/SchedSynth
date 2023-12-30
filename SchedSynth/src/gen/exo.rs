@@ -41,32 +41,29 @@ impl TargetGenerate for ExoProgram {
         return "".to_string()
     }
 
-    fn get_required_build_flags(&self, opts: &Options) -> Vec<String> {
+    fn get_required_build_flags(&self, _opts: &Options) -> Vec<String> {
         vec![]
     }
 }
 
 impl TargetLower for ExoProgram {
-    fn to_vectorize(&mut self, commands: Vec<(Func, Var, Property)>) { }
-    fn to_parallel(&mut self, commands: Vec<(Func, Var, Property)>) { }
-    fn to_store_at(&mut self, commands: Vec<(Func, Func, Var)>) { }
-    fn to_unroll(&mut self, commands: Vec<(Func, Var, Property)>) { }
-    fn to_compute_at(&mut self, commands: Vec<(Func, Option<Func>, Option<Var>)>) { }
-    fn to_reorder(&mut self, commands: Vec<(Func, Var, Var)>) { }
-    fn to_reshape(&mut self, commands: &Vec<Reshape>) { }
+    fn to_vectorize(&mut self, _commands: Vec<(Func, Var, Property)>) { }
+    fn to_parallel(&mut self, _commands: Vec<(Func, Var, Property)>) { }
+    fn to_store_at(&mut self, _commands: Vec<(Func, Func, Var)>) { }
+    fn to_unroll(&mut self, _commands: Vec<(Func, Var, Property)>) { }
+    fn to_compute_at(&mut self, _commands: Vec<(Func, Option<Func>, Option<Var>)>) { }
+    fn to_reorder(&mut self, _commands: Vec<(Func, Var, Var)>) { }
+    fn to_reshape(&mut self, _commands: &Vec<Reshape>) { }
 }
 
 impl TargetHoles for ExoProgram {
     fn get_holes(&self) -> Vec<Box<dyn Hole>> { vec![] }
-    fn can_resolve_holes(&self, opts: &Options) -> bool { true }
+    fn can_resolve_holes(&self, _opts: &Options) -> bool { true }
 }
 
 impl ToString for ExoProgram {
     fn to_string(&self) -> String {
         let mut result = String::new();
-        for func in &self.funcs {
-            // result.push_str(func.name);
-        }
 
         for command in &self.commands {
             let exo_directive = match command {
@@ -74,7 +71,7 @@ impl ToString for ExoProgram {
                     format!("{} = reorder({}, \"{} {}\")", func.name, func.name, fvar.name, tvar.name),
                 ExoCommand::Split(func, fvar, tvar1, tvar2, factor) =>
                     format!("{} = divide_loop({}, {}, \"{}\", [\"{}\", \"{}\"], perfect=True)", func.name, func.name, factor, fvar.name, tvar1.name, tvar2.name),
-                ExoCommand::Fuse(func, fvar1, fvar2, tvar) =>
+                ExoCommand::Fuse(func, fvar1, fvar2, _tvar) =>
                     format!("{} = fuse({}, {}, {})\n#TODO --rename tvar", func.name, func.name, fvar1.name, fvar2.name),
             };
             result.push_str(&exo_directive);

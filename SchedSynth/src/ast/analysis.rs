@@ -22,6 +22,9 @@ fn range_table_for_internal(opts: &Options, ast: &AST, table: &mut HashMap<Var, 
         },
         AST::Assign(_var) => (),
         AST::StoreAt(_var) => (),
+        AST::StructuralHole(ast) => {
+            range_table_for_internal(opts, ast, table)
+        },
         AST::Sequence(asts) => {
             for ast in asts {
                 range_table_for_internal(opts, ast, table);
@@ -70,6 +73,9 @@ fn func_table_internal(opts: &Options, ast: &AST, current_producer: &Option<Func
             }
             func_table_internal(opts, body, current_producer, table);
         },
+        AST::StructuralHole(body) => {
+            func_table_internal(opts, body, current_producer, table);
+        }
         AST::Assign(_var) => {
             // Should we assert that var is the same as producer?
         },

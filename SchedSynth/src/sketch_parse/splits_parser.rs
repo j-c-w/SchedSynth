@@ -79,7 +79,7 @@ fn process_factor(_opts: &Options, rule: Pair<Rule>) -> ASTNumberOrHole {
     match rule.as_rule() {
         Rule::factor_or_hole => {
             // convert rule string into i32
-			let mut inner = rule.clone().into_inner();
+			let inner = rule.clone().into_inner();
 
 			if inner.len() <= 1 {
 				let factor_str = rule.as_span().as_str();

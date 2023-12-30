@@ -3,7 +3,7 @@ use crate::ast::reorder_infer::get_reorders_internal;
 use crate::ast::reorder_infer::insert_reorders_internal;
 use crate::reshape::reshape::Reshape;
 use std::collections::HashSet;
-use crate::shared::range_set::Range;
+use std::collections::HashMap;
 use crate::shared::range_set::IntegerRangeSet;
 
 #[derive(Clone,Hash,Eq,PartialEq,Debug)]
@@ -46,6 +46,7 @@ pub enum AST {
     For(Var, Box<AST>, ForRange, Vec<Property>),
     Assign(Func),
     StoreAt(Func),
+    StructuralHole(Box<AST>),
     Sequence(Vec<AST>)
 }
 
@@ -58,10 +59,15 @@ pub enum Property {
 
 pub trait ASTUtils {
     fn is_loop_type(&self) -> bool;
+    fn is_main_nest(&self) -> bool; // We use this concept of main nest to distinguish between the loops and properties.
     fn get_iteration_variable(&self) -> Option<Var>;
     fn get_substruct(&self) -> Option<AST>;
     fn get_iteration_range(&self) -> Option<ForRange>;
     fn get_properties(&self) -> Vec<Property>;
+    fn get_next_main_var(&self) -> Option<Var>;
+    fn size(&self) -> i32;
+    fn is_func(&self) -> bool;
+    fn has_structural_holes(&self) -> bool;
 }
 
 impl std::fmt::Display for NumberOrHole {
@@ -74,10 +80,61 @@ impl std::fmt::Display for NumberOrHole {
 }
 
 impl ASTUtils for AST {
- fn is_loop_type(&self) -> bool {
+    fn size(&self) -> i32 {
+        match self {
+            AST::Produce(func, ast) => 1 + ast.size(),
+            AST::Consume(func) => 1,
+            AST::For(var, ast, for_range, properties) => 1 + ast.size() + properties.len() as i32,
+            AST::Assign(func) => 1,
+            AST::StoreAt(func) => 1,
+            AST::StructuralHole(ast) => 1 + ast.size(),
+            AST::Sequence(asts) => asts.iter().map(|ast| ast.size()).sum()
+        }
+    }
+
+    fn is_func(&self) -> bool {
+        match self {
+            AST::Produce(_, _) => true,
+            _ => false
+        }
+    }
+
+    fn is_loop_type(&self) -> bool {
         match self {
             AST::For(_, _, _, _) => true,
             _ => false
+        }
+    }
+    
+    // everything should have one main nest that goes 
+    // in, everything else is the secondary nest.
+    // (e..g directives like store_at etc.)
+    fn is_main_nest(&self) -> bool {
+        match self {
+            AST::For(_, _, _, _) => true,
+            AST::StructuralHole(_) => true,
+            _ => false,
+        }
+    }
+
+    fn get_next_main_var(&self) -> Option<Var> {
+        match self {
+            AST::Produce(_, subast) => subast.get_next_main_var(),
+            AST::Consume(_) => None,
+            AST::For(v, _, _, _) => Some(v.clone()),
+            AST::Assign(_) => None,
+            AST::StoreAt(_) => None,
+            AST::StructuralHole(substr) => substr.get_next_main_var(),
+            AST::Sequence(asts) => {
+                // Follow mainline
+                for ast in asts {
+                    if ast.is_main_nest() {
+                        return ast.get_next_main_var()
+                    }
+                }
+                // if no main sequence then nothing.
+                None
+            }
         }
     }
 
@@ -93,6 +150,7 @@ impl ASTUtils for AST {
             AST::Produce(_, ast) => Some(*ast.clone()),
             AST::Consume(_) => None,
             AST::For(_, ast, _, _) => Some(*ast.clone()),
+            AST::StructuralHole(ast) => Some(*ast.clone()),
             AST::Sequence(asts) => {
                 if asts.len() == 1 {
                     Some(asts[0].clone())
@@ -114,6 +172,27 @@ impl ASTUtils for AST {
         match self {
             AST::For(_, _, _, properties) => properties.clone(),
             _ => vec![]
+        }
+    }
+
+    // this should return true if there are any structural hole elements
+    // /or/ if there are any variable holes
+    fn has_structural_holes(&self) -> bool {
+        match self {
+            AST::Produce(_f, subast) => subast.has_structural_holes(),
+            AST::Consume(_f) => false,
+            AST::For(_v, subast, _r, _p) => subast.has_structural_holes(),
+            AST::Assign(_f) => false,
+            AST::StoreAt(_f) => false,
+            AST::StructuralHole(_s) => true,
+            AST::Sequence(subasts) => {
+                for ast in subasts {
+                    if ast.has_structural_holes() {
+                        return true;
+                    }
+                };
+                false
+            }
         }
     }
 }
@@ -140,13 +219,13 @@ pub fn get_store_at_internal(opts: &Options, parent_variable: &Option<&Var>, ast
         AST::Produce(_func, ast) => {
             get_store_at_internal(opts, parent_variable, ast)
         },
-        AST::Consume(func) => {
+        AST::Consume(_func) => {
             vec![]
         },
-        AST::For(var, ast, range, properties) => {
+        AST::For(var, ast, _range, _properties) => {
             get_store_at_internal(opts, &Some(&var), ast)
         },
-        AST::Assign(func) => {
+        AST::Assign(_func) => {
             vec![]
         },
         AST::StoreAt(func) => {
@@ -158,6 +237,9 @@ pub fn get_store_at_internal(opts: &Options, parent_variable: &Option<&Var>, ast
                     panic!("unexpected store_at root --- need a return")
                 }
             }
+        },
+        AST::StructuralHole(ast) => {
+            get_store_at_internal(opts, parent_variable, ast)
         },
         AST::Sequence(asts) => {
             let mut store_ats = vec![];
@@ -234,6 +316,9 @@ fn get_compute_at_internal(opts: &Options, ast: &AST, producer: &Option<Func>, l
         },
         AST::StoreAt(_var) => {
             vec![]
+        },
+        AST::StructuralHole(subast) => {
+            get_compute_at_internal(opts, subast, producer, last_variable)
         },
         AST::Sequence(asts) => {
             let mut res = vec![];
@@ -346,6 +431,9 @@ fn get_loops_with_property(_opts: &Options, ast: &AST, current_producer: &Option
         },
         AST::Assign(_) => Vec::new(),
         AST::StoreAt(_) => Vec::new(),
+        AST::StructuralHole(subast) => {
+            get_loops_with_property(_opts, subast, &current_producer, properties)
+        },
         AST::Sequence(seq) => {
             // recurse on each element of seq, and join the results into a single vec
             let mut v = Vec::new();
@@ -390,4 +478,99 @@ fn fuzzy_property_match(properties: &Vec<Property>, to_match: &Property) -> Vec<
         };
     };
     result
+}
+
+// Remove any non-top-level func.  If it's a direct
+// child, panic --- shouldn't happen?
+fn remove_subfuncs(ast: &AST) -> AST {
+    match ast {
+        AST::Produce(func, ast) => {
+            panic!("Can't remove a non-sequence func");
+        },
+        AST::Consume(func) => {
+            AST::Consume(func.clone())
+        },
+        AST::For(var, ast, range, props) => {
+            AST::For(var.clone(), Box::new(remove_subfuncs(ast)), range.clone(), props.clone())
+        },
+        AST::Assign(func) => {
+            AST::Assign(func.clone())
+        },
+        AST::StoreAt(func) => {
+            AST::StoreAt(func.clone())
+        },
+        AST::StructuralHole(ast) => {
+            AST::StructuralHole(Box::new(remove_subfuncs(ast)))
+        },
+        AST::Sequence(asts) => {
+            let mut newSeq = Vec::new();
+            for ast in asts {
+                if !ast.is_func() {
+                    newSeq.push(remove_subfuncs(ast))
+                }
+            }
+            AST::Sequence(newSeq)
+        }
+    }
+}
+
+pub fn split_ast_into_funcs(ast: &AST) -> HashMap<Func, AST> {
+    // split ast into the different funcs within (produce).
+    let mut funcs = HashMap::new();
+    match ast {
+        AST::Produce(func, ast) => {
+            funcs.insert(func.clone(), remove_subfuncs(ast));
+            funcs.extend(split_ast_into_funcs(&ast));
+            funcs
+        },
+        AST::Consume(func) => funcs,
+        AST::For(var, ast, range, props) => {
+            funcs.extend(split_ast_into_funcs(&ast));
+            funcs
+        },
+        AST::Assign(func) => funcs,
+        AST::StoreAt(func) => funcs,
+        AST::StructuralHole(ast) => {
+            funcs.extend(split_ast_into_funcs(&ast));
+            funcs
+        },
+        AST::Sequence(asts) => {
+            for ast in asts {
+                funcs.extend(split_ast_into_funcs(&ast));
+            }
+            funcs
+        }
+    }
+}
+
+pub fn get_all_funcnames(ast: &AST) -> Vec<Func> {
+    match ast {
+        AST::Produce(func, ast) => {
+            let mut res = get_all_funcnames(ast);
+            res.push(func.clone());
+            res
+        },
+        AST::Consume(func) => {
+            vec![func.clone()]
+        },
+        AST::For(_var, ast, _range, _props) => {
+            get_all_funcnames(ast)
+        },
+        AST::Assign(_func) => {
+            vec![]
+        },
+        AST::StoreAt(_func) => {
+            vec![]
+        },
+        AST::StructuralHole(ast) => {
+            get_all_funcnames(ast)
+        },
+        AST::Sequence(asts) => {
+            let mut res = vec![];
+            for ast in asts {
+                res.append(&mut get_all_funcnames(ast));
+            }
+            res
+        }
+    }
 }

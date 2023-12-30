@@ -34,6 +34,7 @@ pub struct Options {
 
     pub debug_func_table: bool,
     pub debug_reorder_topo: bool,
+    pub debug_ilp_solver: bool,
 
     // opentuner options
     pub opentuner_timeout: i32,
@@ -136,6 +137,11 @@ pub fn parse_options() -> Options {
             .help("Debug the interface with opentuner")
         )
         .arg(
+            Arg::new("debug-ilp-solver")
+            .long("debug-ilp-solver")
+            .help("Debug the ilp solver interface")
+        )
+        .arg(
             Arg::new("opentuner-timeout")
             .long("opentuner-timeout")
             .help("Debug the interface with opentuner")
@@ -170,6 +176,7 @@ pub fn parse_options() -> Options {
         debug_opentuner: args.is_present("debug-opentuner"),
 
         debug_reorder_topo: args.is_present("debug-reorder-topo"),
+        debug_ilp_solver: args.is_present("debug-ilp-solver"),
 
         opentuner_timeout: args.value_of("opentuner-timeout").unwrap().parse().expect("Opentuner timeout must be an integer"),
     };

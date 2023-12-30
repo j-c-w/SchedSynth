@@ -69,6 +69,7 @@ impl fmt::Display for AST {
             },
             AST::Assign(ref var) => write!(f, "assign {}", var),
             AST::StoreAt(ref var) => write!(f, "store {} here", var),
+            AST::StructuralHole(ref ast) => write!(f, "structural hole ({})", ast),
             AST::Sequence(ref ast) => {
                 let mut s = String::new();
                 for a in ast {
@@ -136,6 +137,9 @@ pub fn ast_from_sketch_ast(input: SketchAST) -> AST {
         SketchAST::StoreAt(_nesting, var) => {
             AST::StoreAt(variable_to_func(var))
         },
+        SketchAST::StructuralHole(_nesting, nest) => {
+            AST::StructuralHole(Box::new(ast_from_sketch_ast(*nest)))
+        }
         SketchAST::Sequence(_nesting, asts) => {
             let mut ast_vec = Vec::new();
             for ast in asts {

@@ -4,7 +4,6 @@ use pest_derive::Parser;
 use std::fs;
 
 use crate::options::options::Options;
-use crate::shared::range_set::Range;
 use crate::shared::range_set::IntegerRangeSet;
 use crate::shared::range_set::AnyIntegerSet;
 
@@ -31,6 +30,7 @@ pub enum SketchAST { // nodes have nesting, <other stuff>
     Assign(i32, Variable), // variable name
     StoreAt(i32, Variable), // variable name
     Sequence(i32, Vec<SketchAST>), // list of sub-asts
+    StructuralHole(i32, Box<SketchAST>) // optional sub-asts.
 }
 
 #[derive(Clone)]
@@ -103,6 +103,7 @@ impl ToString for SketchAST {
             SketchAST::StoreAt(_, n) => format!("store {} here", n.to_string().clone()),
             SketchAST::Sequence(_, subvars) => format!("Sequence({})", subvars.iter().map(|x|
                     x.to_string()).collect::<Vec<String>>().join(",")),
+            SketchAST::StructuralHole(_, subvar) => format!("StructuralHole({})", subvar.to_string()),
         }
     }
 }
@@ -127,9 +128,10 @@ impl AST for SketchAST {
                 let res = Vec::new();
                 res
             },
-            SketchAST::StoreAt(_, n) => {
+            SketchAST::StoreAt(_, _n) => {
                 vec![]
             }
+            SketchAST::StructuralHole(_nest, child) => vec![child.as_ref().clone()],
             SketchAST::Sequence(_nest, children) => children.to_vec(),
         }
     }
@@ -141,6 +143,7 @@ impl AST for SketchAST {
             SketchAST::For(_, _, _, _, _) => "For".into(),
             SketchAST::Assign(_, _) => "Assign".into(),
             SketchAST::StoreAt(_, _) => "StoreAt".into(),
+            SketchAST::StructuralHole(_, _) => "StructuralHole".into(),
             SketchAST::Sequence(_, _) => "Sequence".into(),
         }
     }
@@ -151,6 +154,7 @@ impl AST for SketchAST {
             SketchAST::Consume(_, _) => 1,
             SketchAST::For(_, _, child, _, _) => child.size() + 1,
             SketchAST::Assign(_, _) => 1,
+            SketchAST::StructuralHole(_, child) => child.size() + 1,
             SketchAST::Sequence(_, children) => children.iter().map(|child| child.size()).sum(),
             SketchAST::StoreAt(_, _) => 1,
         }
@@ -347,18 +351,35 @@ fn process(opts: &Options, nesting_depth: i32, sequence: Pair<Rule>) -> SketchAS
                 Box::new(SketchAST::Sequence(nesting_depth, Vec::new())),
                 range, Vec::new())
         },
+        Rule::structure_hole => {
+            if opts.debug_parser {
+                println!("Got a structural hole");
+            }
+
+            SketchAST::StructuralHole(nesting_depth,
+                Box::new(SketchAST::Sequence(nesting_depth, Vec::new())))
+        }
         Rule::assignment => {
             if opts.debug_parser {
                 println!("Got an assignment");
             }
-            let mut inner = sequence.into_inner();
 
-            // This was here in original versions, but now it's infered.
-            // let ident = process_ident(opts, inner.next().unwrap());
-
-            // I think the name of the assign isn't actually
-            // used anywhere relevant.
-            SketchAST::Assign(nesting_depth, Variable{ name: "Inferred".to_string() })
+            let name = sequence.as_str();
+            if name == "??" {
+                // Structure hole --- note that doesn't just
+                // have to be a compute.
+                // Implicitly, this is the same as
+                // a compute nested within a ??.  So it's just syntactic
+                // sugar for:
+                // ??:
+                //   compute
+                SketchAST::StructuralHole(nesting_depth,
+                    Box::new(SketchAST::Assign(nesting_depth, Variable { name: "Inferred".to_string()} )))
+            } else {
+                // I think the name of the assign isn't actually
+                // used anywhere relevant.
+                SketchAST::Assign(nesting_depth, Variable{ name: "Inferred".to_string() })
+            }
         }
         Rule::store_at => {
             if opts.debug_parser {
@@ -442,6 +463,7 @@ fn get_nest_depth(v: &SketchAST) -> &i32 {
         SketchAST::For(n, _, _, _, _) => n,
         SketchAST::Assign(n, _) => n,
         SketchAST::Sequence(n, _) => n,
+        SketchAST::StructuralHole(n, _) => n,
         SketchAST::StoreAt(n, _) => n,
     }
 }
@@ -462,7 +484,11 @@ fn set_nest(v: &SketchAST, nest: SketchAST) -> SketchAST {
             SketchAST::For(n, var, current_nest, range, properties) => {
                 assert!(current_nest.size() == 0); // check we aren't deleting anything
                 SketchAST::For(n.clone(), var.clone(), Box::new(nest), range.clone(), properties.clone())
-            }
+            },
+            SketchAST::StructuralHole(n, current_nest) => {
+                assert!(current_nest.size() == 0);
+                SketchAST::StructuralHole(n.clone(), Box::new(nest))
+            },
             SketchAST::StoreAt(_n, _var) => panic!("Can't set nest to a store"),
             SketchAST::Assign(_n, _var) => panic!("Can't set nest to an assign"),
             SketchAST::Sequence(_n, _nest) => panic!("Can't set nest to a sequence"),

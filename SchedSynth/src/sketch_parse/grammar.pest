@@ -22,7 +22,7 @@ consume = { "compute" ~ whitespace_plus ~ ident_or_hole}
 pfor = {"for" ~ whitespace_plus ~ ident_or_hole ~ optional_range ~ colon }
 vectorize = { "vectorized" ~ whitespace_plus ~ ident_or_hole ~ optional_range ~ colon }
 parallel = { "parallel" ~ whitespace_plus ~ ident_or_hole ~ optional_range ~ colon }
-assignment = { "compute" }
+assignment = { "compute" | "??" }
 store_at = { "alloc" ~ whitespace_plus ~ ident_or_hole }
 unroll = { "unrolled" ~ whitespace_plus ~ ident_or_hole ~ optional_range ~ whitespace_plus ~ number_or_hole ~ whitespace_star ~ colon}
 structure_hole = { "??" ~ whitespace_star ~ colon}
@@ -39,6 +39,7 @@ sequence_list = {
 }
 sequence =
   { indent_nest ~ produce
+  | indent_nest ~ structure_hole
   | indent_nest ~ consume
   | indent_nest ~ pfor
   | indent_nest ~ store_at

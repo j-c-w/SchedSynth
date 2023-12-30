@@ -60,7 +60,7 @@ impl fmt::Debug for Reshape {
 fn can_apply(ast: &AST, reshape: &Reshape) -> Option<AST> {
     // does the reshape reshape match the ast?
     match reshape {
-        Reshape::Split(f, v, (v1, v2), factor) => {
+        Reshape::Split(_f, v, (v1, v2), factor) => {
             if ast.is_loop_type() {
                 let variable = ast.get_iteration_variable().unwrap(); //loop types must have iter var
                 let properties = ast.get_properties();
@@ -81,7 +81,7 @@ fn can_apply(ast: &AST, reshape: &Reshape) -> Option<AST> {
                 None
             }
         }
-        Reshape::Reorder(f, (v1, v2)) => {
+        Reshape::Reorder(_f, (v1, v2)) => {
             if ast.is_loop_type() {
                 let variable_1 = ast.get_iteration_variable().unwrap(); //loop types must have iter var
                 if variable_1 == *v1 {
@@ -117,7 +117,7 @@ fn can_apply(ast: &AST, reshape: &Reshape) -> Option<AST> {
                 None
             }
         }
-        Reshape::Fuse(f, (v1, v2), v) => {
+        Reshape::Fuse(_f, (v1, v2), v) => {
             if ast.is_loop_type() {
                 let outer_variable = ast.get_iteration_variable().unwrap(); //loop types must have iter var
                 let inner_loop = ast.get_substruct().unwrap();
@@ -170,6 +170,10 @@ fn apply_reshape(ast: &AST, reshape: &Reshape) -> (AST, bool) {
                 AST::StoreAt(func) => {
                     (AST::StoreAt(func.clone()), false)
                 }
+                AST::StructuralHole(ast) => {
+                    let (new_ast, applied) = apply_reshape(&*ast, reshape);
+                    (AST::StructuralHole(Box::new(new_ast)), applied)
+                }
                 AST::Sequence(asts) => {
                     let mut new_asts = Vec::new();
                     let mut applied = false;
@@ -185,7 +189,7 @@ fn apply_reshape(ast: &AST, reshape: &Reshape) -> (AST, bool) {
     }
 }
 
-fn apply_reshapes(ast: &AST, reshapes: &Vec<Reshape>) -> AST {
+pub fn apply_reshapes(ast: &AST, reshapes: &Vec<Reshape>) -> AST {
     let mut new_ast = ast.clone();
     for reshape in reshapes {
         let (new_ast_internal, applied) = apply_reshape(&new_ast, reshape);
@@ -242,7 +246,7 @@ fn enforce_nested(opts: &Options, ast: &AST, outer: Var, inner: Var, func_lookup
         AST::Consume(_func) => {
             vec![]
         },
-        AST::For(var, subast, _range, properties) => {
+        AST::For(var, subast, _range, _properties) => {
             let this_is_inner = *var == inner;
             let this_is_outer = *var == outer;
             if opts.debug_reshape {
@@ -290,6 +294,9 @@ fn enforce_nested(opts: &Options, ast: &AST, outer: Var, inner: Var, func_lookup
         },
         AST::Assign(_func) => vec![],
         AST::StoreAt(_func) => vec![],
+        AST::StructuralHole(subast) => {
+            enforce_nested(opts, &subast, outer.clone(), inner.clone(), func_lookup, found_outer, found_inner)
+        },
         AST::Sequence(seq) => {
             let mut reorders = vec![];
             for subast in seq {

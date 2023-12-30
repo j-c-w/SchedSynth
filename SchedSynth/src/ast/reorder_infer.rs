@@ -128,7 +128,7 @@ fn topo_sort(opts: &Options, ast: &AST, orders: Vec<(Func, Var, Var)>) -> Vec<(F
             removed_last_time = false;
 
             // iterate over reorders by index
-            for (i, (v1, v2)) in reorders.clone().iter().enumerate() {
+            for (_i, (v1, v2)) in reorders.clone().iter().enumerate() {
                 let mut last_matched = false;
                 let mut removed_reorder = false; // when this gets set to true, have to remove it.
 
@@ -138,10 +138,9 @@ fn topo_sort(opts: &Options, ast: &AST, orders: Vec<(Func, Var, Var)>) -> Vec<(F
                 }
 
                 let mut v1_index = 0;
-                let mut v2_index = 0;
                 for (j, v) in order.clone().iter().enumerate() {
                     if last_matched && v == v2 {
-                        v2_index = j;
+                        let v2_index = j;
                         // We got v1, v2 in order --- this is the swap
                         // that we can do next.
                         result_vec.push((func.clone(), v1.clone(), v2.clone()));
@@ -179,9 +178,9 @@ fn topo_sort(opts: &Options, ast: &AST, orders: Vec<(Func, Var, Var)>) -> Vec<(F
     result_vec
 }
 
-fn build_table_by_func(opts: &Options, table: &mut HashMap<Func, HashSet::<(Var, Var)>>, orders: &Vec<(Func, Var, Var)>) {
+fn build_table_by_func(_opts: &Options, table: &mut HashMap<Func, HashSet::<(Var, Var)>>, orders: &Vec<(Func, Var, Var)>) {
     for (func, var1, var2) in orders {
-        let mut order = table.entry(func.clone()).or_insert(HashSet::new());
+        let order = table.entry(func.clone()).or_insert(HashSet::new());
         order.insert((var1.clone(), var2.clone()));
     }
 }
@@ -234,6 +233,9 @@ fn get_orders(opts: &Options, ast: &AST, current_producer: &Option<Func>,
         AST::Assign(_var) | AST::StoreAt(_var) => {
             // I think we don't need to do anything here.
         },
+        AST::StructuralHole(ast) => {
+            get_orders(opts, ast, current_producer, orders);
+        }
         AST::Sequence(asts) => {
             for ast in asts {
                 get_orders(opts, ast, current_producer, orders);
@@ -243,6 +245,6 @@ fn get_orders(opts: &Options, ast: &AST, current_producer: &Option<Func>,
 }
 
 
-pub fn insert_reorders_internal(opts: &Options, reshapes: &Vec<Reshape>, original_ast: &AST, target_ast: &AST) -> Vec<Reshape> {
+pub fn insert_reorders_internal(opts: &Options, reshapes: &Vec<Reshape>, original_ast: &AST, _target_ast: &AST) -> Vec<Reshape> {
     inject_reorders(opts, original_ast, reshapes)
 }
