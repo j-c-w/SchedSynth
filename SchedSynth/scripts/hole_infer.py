@@ -63,7 +63,7 @@ def fill_holes(l, fills):
     fill_index = 0
 
     for elem in l:
-        if elem is not None:
+        if not_hole(elem):
             res.append(elem)
         else:
             res += fills[fill_index]
@@ -79,7 +79,7 @@ def print_grid(l, size):
 def all_options(input_list, hole_fills):
     # Go through the input_list and find every permutation
     # of holes that can fill the holes in the input list.
-    hole_indexes = [i for i in range(len(input_list)) if input_list[i] is None]
+    hole_indexes = [i for i in range(len(input_list)) if hole(input_list[i])]
     if len(hole_indexes) == 0:
         print("Nothing to fill")
         return []
@@ -380,7 +380,7 @@ def in_order_insert(input_list, hole_fills, target_list):
     # Now, put everything in the hole closest to it.
     hole_locations = []
     for i, inp in enumerate(input_list):
-        if inp is None:
+        if hole(inp):
             hole_locations.append(i)
     hole_locations.append(10000000) # extra number on the end to 
     # make rnage checks below simpler.
@@ -420,7 +420,7 @@ def swap_alg(inputs, fills, target):
         res = []
         for b in blocks:
             for elt in b:
-                if elt is not None:
+                if not_hole(elt) and elt is not None:
                     res.append(elt)
         return res
 
@@ -431,7 +431,7 @@ def swap_alg(inputs, fills, target):
     block = []
     fills_added = False
     for inp in inputs:
-        if inp is None:
+        if hole(inp):
             # if we have a block, put that in.
             if len(block) > 0:
                 blocked_inputs.append(block + [None])
@@ -446,8 +446,8 @@ def swap_alg(inputs, fills, target):
     if len(block) > 0:
         blocked_inputs.append(block + [None])
 
-    tied_at_start = inputs[0] is not None
-    tied_at_end = inputs[-1] is not None
+    tied_at_start = not_hole(inputs[0])
+    tied_at_end = not_hole(inputs[-1])
 
     def can_swap(i, j):
         if i >= len(blocked_inputs) or j >= len(blocked_inputs):
@@ -464,20 +464,29 @@ def swap_alg(inputs, fills, target):
 
     # now, do bubble-sort while things change
     changed = True
+    print("Initial" + str(join(blocked_inputs)))
     while changed:
         changed = False
         for i in range(0, len(blocked_inputs)):
-            current_score = edit_distance(join(blocked_inputs), target)
-            if can_swap(i, i + 1):
-                blocked_inputs[i], blocked_inputs[i + 1] = blocked_inputs[i + 1], blocked_inputs[i]
-                next_score = edit_distance(join(blocked_inputs), target)
+            if len(blocked_inputs[i]) > 1:
+                print("Skipped ", blocked_inputs[i])
+                continue
+            for j in range(i + 1, len(blocked_inputs)):
+                if len(blocked_inputs[j]) > 1 and j != i + 1:
+                    continue
+                current_score = edit_distance(join(blocked_inputs), target)
+                if can_swap(i, j):
+                    blocked_inputs[i], blocked_inputs[j] = blocked_inputs[j], blocked_inputs[i]
+                    next_score = edit_distance(join(blocked_inputs), target)
 
-                if next_score < current_score:
-                    print("Changed (", current_score, next_score, ")")
-                    changed = True
-                else:
-                    # unswap
-                    blocked_inputs[i], blocked_inputs[i + 1] = blocked_inputs[i + 1], blocked_inputs[i]
+                    if next_score < current_score:
+                        print("Changed (", current_score, next_score, ")")
+                        print("Changed (", blocked_inputs[i], blocked_inputs[j], ")")
+                        print(join(blocked_inputs))
+                        changed = True
+                    else:
+                        # unswap
+                        blocked_inputs[i], blocked_inputs[j] = blocked_inputs[j], blocked_inputs[i]
     return join(blocked_inputs)
 
 
@@ -528,7 +537,7 @@ if __name__ == "__main__":
 
         # run ilp solver
         result = ilp_insert(input_list, hole_fills, target)
-        print("ILP Result is ", result)
+        print("Result:", result)
         ilp_score = edit_distance(result[:], target)
         print("ILP Score is (lower is better) ", ilp_score)
 
@@ -541,8 +550,8 @@ if __name__ == "__main__":
 
     if args.test:
         input_list, hole_fills = input_generator(6)
-        # input_list = [None, 1, None, None, 2, 6]
-        # hole_fills = [3,4,5]
+        input_list = ['hole', 4, 'hole', 2, 1, 'hole']
+        hole_fills = [3,5,6]
         opts = all_options(input_list, hole_fills)
 
         # Get the min of all options
@@ -563,9 +572,9 @@ if __name__ == "__main__":
         swap_alg_score = edit_distance(swap_alg_result[:], target)
 
         # use the in_order_insert algorithm
-        fills = in_order_insert(input_list, hole_fills, target)
-        alg_opt = fill_holes(input_list[:], fills)
-        alg_dist = edit_distance(alg_opt[:], target)
+        # fills = in_order_insert(input_list, hole_fills, target)
+        # alg_opt = fill_holes(input_list[:], fills)
+        # alg_dist = edit_distance(alg_opt[:], target)
 
         print("For input ", input_list)
         print("Target ", target)
@@ -576,8 +585,8 @@ if __name__ == "__main__":
         print("ILP Score is ", ilp_score)
         print("ILP result is ", ilp_result)
 
-        print("Alg score is ", alg_dist)
-        print("Alg config was ", alg_opt)
+        # print("Alg score is ", alg_dist)
+        # print("Alg config was ", alg_opt)
 
         print("Swap alg score is ", swap_alg_score)
         print("Swap alg result is ", swap_alg_result)
