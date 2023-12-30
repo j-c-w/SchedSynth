@@ -4,6 +4,8 @@ use crate::ast::ast::Var;
 use crate::ast::ast::get_all_funcnames;
 use crate::ast::ast::split_ast_into_funcs;
 use crate::ast::ast::ForRange;
+use crate::ast::ast::HoleOption;
+use crate::ast::ast::VarOrHole;
 use std::collections::HashMap;
 use crate::options::options::Options;
 use crate::reshape::reshape::Reshape;
@@ -139,7 +141,10 @@ fn hole_structure_builder(ast: &AST, map: &HashMap<Var, i32>) -> Vec<HoleStructu
             vec![],
         AST::For(v, subast, _range, _props) => {
             let mut result = hole_structure_builder(&subast, map);
-            result.insert(0, HoleStructure::Loop(map.get(v).unwrap().clone()));
+            match v {
+                VarOrHole::Var(var) => result.insert(0, HoleStructure::Loop(map.get(&var).unwrap().clone())),
+                VarOrHole::Hole() => result.insert(0, HoleStructure::VariableHole()),
+            }
             return result;
         },
         AST::Assign(_f) =>
@@ -184,7 +189,7 @@ fn map_builder(target_ast: &AST, current_map: &mut HashMap<Var, i32>, current_ma
         AST::Consume(_f) =>
             (),
         AST::For(v, subast, _f, _p) => {
-            current_map.insert(v.clone(), current_max.clone());
+            current_map.insert(v.get().unwrap(), current_max.clone());
             *current_max += 1;
             map_builder(subast, current_map, current_max)
         },
@@ -272,10 +277,21 @@ fn fill_holes(ast: &AST, var_order: &Vec<Var>) -> AST {
             AST::Consume(f.clone()),
         AST::For(v, subast, range, prop) => {
             // need this variable to be the top-- otherwise the order is wrong!
-            assert!(v.clone() == var_order[0].clone());
+            let new_variable = match v {
+                VarOrHole::Var(v) => {
+                    // check that we have a valid order
+                    assert!(v.clone() == var_order[0].clone());
+                    v.clone()
+                },
+                VarOrHole::Hole() => {
+                    // fill the hole and recurse.
+                    var_order[0].clone()
+                },
+            };
+
             // slice var_order
             let new_subast = fill_holes(subast, &var_order[1..].to_vec());
-            AST::For(v.clone(), Box::new(new_subast), range.clone(), prop.clone())
+            AST::For(VarOrHole::Var(new_variable), Box::new(new_subast), range.clone(), prop.clone())
         },
         AST::Assign(f) =>
             AST::Assign(f.clone()),
@@ -301,11 +317,14 @@ fn fill_holes(ast: &AST, var_order: &Vec<Var>) -> AST {
             // Note that we'll have to do this differently once
             // variable holes are properly supported.
             let next_var = subast.get_next_main_var();
-            let number_to_fill = match next_var {
+            let number_of_fixed_holes = subast.get_number_of_fixed_holes();
+            let number_till_next_var = match next_var {
                 None => var_order.len(),
                 // get index of v in var_order
                 Some(v) => var_order.iter().position(|x| *x == v).unwrap()
             };
+            // convert i32 to usize
+            let number_to_fill = number_till_next_var - (number_of_fixed_holes as usize);
 
             // Build the subast with the rest of the var_order
             // (sliced at number_to_fill)
@@ -315,10 +334,45 @@ fn fill_holes(ast: &AST, var_order: &Vec<Var>) -> AST {
             let mut new_order = (var_order[..number_to_fill]).to_vec();
             new_order.reverse();
             for var in new_order {
-                new_subast = AST::For(var, Box::new(new_subast), ForRange::All(), vec![]);
+                new_subast = AST::For(VarOrHole::Var(var), Box::new(new_subast), ForRange::All(), vec![]);
             }
 
             new_subast
+        }
+    }
+}
+
+// walk through the ast and assert that there are no
+// StructuralHole, or that all VarOrHole are Var not Hole.
+pub fn assert_no_structural_holes(ast: &AST) {
+    let has_holes = ast_has_holes(ast);
+    if has_holes {
+        println!("Tree {} has holes ", ast);
+        panic!("")
+    }
+}
+
+fn ast_has_holes(ast: &AST) -> bool {
+    match ast {
+        AST::Produce(_, ast) => ast_has_holes(ast),
+        AST::Consume(_) => false,
+        AST::For(var_or_hole, ast, _, _) => {
+            match var_or_hole {
+                VarOrHole::Var(_) => ast_has_holes(ast),
+                VarOrHole::Hole() => true
+            }
+        },
+        AST::Assign(_) => false,
+        AST::StoreAt(_) => false,
+        AST::StructuralHole(_) => true,
+        AST::Sequence(asts) => {
+            for ast in asts {
+                if ast_has_holes(ast) {
+                    return true;
+                }
+            }
+
+            return false;
         }
     }
 }

@@ -4,6 +4,7 @@ use std::collections::HashSet;
 use crate::ast::ast::AST;
 use crate::ast::ast::Var;
 use crate::ast::ast::Func;
+use crate::ast::ast::HoleOption;
 use crate::reshape::reshape::Reshape;
 use crate::reshape::reshape::inject_reorders;
 
@@ -225,7 +226,7 @@ fn get_orders(opts: &Options, ast: &AST, current_producer: &Option<Func>,
             // have current_producer, then create a new singleton vec for it.
             let producer_name = current_producer.clone().unwrap_or(Func{ name: "_top_level".to_string(), update: None });
             let order_vec = orders.entry(producer_name).or_insert(vec![]);
-            order_vec.push(var.clone());
+            order_vec.push(var.get().unwrap());
             
             // recurse
             get_orders(opts, ast, current_producer, orders);

@@ -4,6 +4,8 @@ use crate::ast::ast::ForRange;
 use crate::ast::ast::AST;
 use crate::ast::ast::ASTUtils;
 use crate::ast::ast::NumberOrHole;
+use crate::ast::ast::VarOrHole;
+use crate::ast::ast::HoleOption;
 
 use crate::options::options::Options;
 use std::collections::HashMap;
@@ -69,8 +71,8 @@ fn can_apply(ast: &AST, reshape: &Reshape) -> Option<AST> {
                     Some(
                         // TODO -- preserve vect/parallel?
                         AST::For(
-                            v1.clone(), Box::new(AST::For(
-                                v2.clone(), Box::new(inner_loop), ForRange::Between(NumberOrHole::Number(0), factor.clone()), properties.clone()
+                            VarOrHole::Var(v1.clone()), Box::new(AST::For(
+                                VarOrHole::Var(v2.clone()), Box::new(inner_loop), ForRange::Between(NumberOrHole::Number(0), factor.clone()), properties.clone()
                             )), ForRange::All(), properties.clone()
                         )
                     )
@@ -98,8 +100,8 @@ fn can_apply(ast: &AST, reshape: &Reshape) -> Option<AST> {
                         if variable_2 == *v2 {
                             Some(
                                 AST::For(
-                                    v2.clone(), Box::new(AST::For(
-                                            v1.clone(), Box::new(inner_inner_loop),
+                                    VarOrHole::Var(v2.clone()), Box::new(AST::For(
+                                            VarOrHole::Var(v1.clone()), Box::new(inner_inner_loop),
                                             v1_range.clone(), v1_properties
                                     )), v2_range.clone(), v2_properties
                                 )
@@ -130,7 +132,7 @@ fn can_apply(ast: &AST, reshape: &Reshape) -> Option<AST> {
                     if outer_variable == *v1 && inner_variable == *v2 {
                         Some(
                             AST::For(
-                                v.clone(), Box::new(inner_inner_loop), ForRange::All(), vec![]
+                                VarOrHole::Var(v.clone()), Box::new(inner_inner_loop), ForRange::All(), vec![]
                             )
                         )
                     } else {
@@ -246,9 +248,11 @@ fn enforce_nested(opts: &Options, ast: &AST, outer: Var, inner: Var, func_lookup
         AST::Consume(_func) => {
             vec![]
         },
-        AST::For(var, subast, _range, _properties) => {
-            let this_is_inner = *var == inner;
-            let this_is_outer = *var == outer;
+        AST::For(var_hole, subast, _range, _properties) => {
+            let var = var_hole.get().unwrap(); // must have no holes to reorder.
+                                               // I guess we could rewrite this if required
+            let this_is_inner = var == inner;
+            let this_is_outer = var == outer;
             if opts.debug_reshape {
                 println!("Found inner var: {}, found outer var: {}", this_is_inner | found_inner,
                     this_is_outer | found_outer)
@@ -263,7 +267,7 @@ fn enforce_nested(opts: &Options, ast: &AST, outer: Var, inner: Var, func_lookup
                     // This is not the inner --- insert a reordering that swaps the outer
                     // and this loop --- and recurse
                     // TODO -- check that both vars have the same parent.
-                    let new_reshape = Reshape::Reorder(func_lookup.get(var).unwrap().clone(), (var.clone(),
+                    let new_reshape = Reshape::Reorder(func_lookup.get(&var).unwrap().clone(), (var.clone(),
                     outer.clone()));
                     let mut reorders = enforce_nested(opts, &*subast, outer, inner, func_lookup, found_outer, found_inner);
                     reorders.push(new_reshape);
@@ -272,12 +276,12 @@ fn enforce_nested(opts: &Options, ast: &AST, outer: Var, inner: Var, func_lookup
             } else if found_inner {
                 if this_is_outer {
                     // we are done -- but still need to swap inner and outer.
-                    vec![Reshape::Reorder(func_lookup.get(var).unwrap().clone(), (outer.clone(),
+                    vec![Reshape::Reorder(func_lookup.get(&var).unwrap().clone(), (outer.clone(),
                     inner.clone()))]
                 } else {
                     // we are still looking for the outer --- recurse
                     // and insert a swap for this loop and the inner.
-                    let new_reshape = Reshape::Reorder(func_lookup.get(var).unwrap().clone(), (var.clone(),
+                    let new_reshape = Reshape::Reorder(func_lookup.get(&var).unwrap().clone(), (var.clone(),
                     inner.clone()));
                     let mut reorders = enforce_nested(opts, &*subast, outer, inner, func_lookup, found_outer, found_inner);
                     reorders.push(new_reshape);

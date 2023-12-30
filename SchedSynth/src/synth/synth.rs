@@ -9,6 +9,8 @@ use crate::holes::holes::fill_structural_holes;
 fn synthesize_candidates(opts: &Options, backend_type: Backend, source: &AST, target: &AST, reshapes: &Vec<Reshape>) -> String {
     // Infer over any structural holes.
     let filled_target = fill_structural_holes(opts, source, target, reshapes);
+    // assert that all structural holes are filled
+    crate::holes::holes::assert_no_structural_holes(&filled_target);
 
     // Go through the various halide exprs and get the calls for them.
     let infered_reshapes = &crate::ast::ast::insert_reorders(opts, reshapes, source, &filled_target);

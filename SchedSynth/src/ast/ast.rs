@@ -11,6 +11,12 @@ pub struct Var {
     pub name: String
 }
 
+#[derive(Clone,Hash,Eq,PartialEq,Debug)]
+pub enum VarOrHole {
+    Var(Var),
+    Hole()
+}
+
 #[derive(Clone,Hash,Eq,PartialEq)]
 pub struct Func {
     pub name: String,
@@ -43,7 +49,7 @@ impl PartialEq for NumberOrHole {
 pub enum AST {
     Produce(Func, Box<AST>),
     Consume(Func),
-    For(Var, Box<AST>, ForRange, Vec<Property>),
+    For(VarOrHole, Box<AST>, ForRange, Vec<Property>),
     Assign(Func),
     StoreAt(Func),
     StructuralHole(Box<AST>),
@@ -68,6 +74,37 @@ pub trait ASTUtils {
     fn size(&self) -> i32;
     fn is_func(&self) -> bool;
     fn has_structural_holes(&self) -> bool;
+    fn get_number_of_fixed_holes(&self) -> i32; // get the number of holes between here and the next non-hole.  Only count fixed holes :)
+}
+
+pub trait HoleOption<T> {
+    fn get(&self) -> Option<T>;
+    fn is_hole(&self) -> bool;
+}
+
+impl HoleOption<Var> for VarOrHole {
+    fn get(&self) -> Option<Var> {
+        match self {
+            VarOrHole::Var(v) => Some(v.clone()),
+            VarOrHole::Hole() => None
+        }
+    }
+
+    fn is_hole(&self) -> bool {
+        match self {
+            VarOrHole::Var(_) => false,
+            VarOrHole::Hole() => true
+        }
+    }
+}
+
+impl std::fmt::Display for VarOrHole {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match self {
+            VarOrHole::Var(v) => write!(f, "{}", v),
+            VarOrHole::Hole() => write!(f, "_")
+        }
+    }
 }
 
 impl std::fmt::Display for NumberOrHole {
@@ -117,11 +154,34 @@ impl ASTUtils for AST {
         }
     }
 
+    // Get the number of fixed holes between here
+    // and the next non-hole.
+    fn get_number_of_fixed_holes(&self) -> i32 {
+        match self {
+            AST::StructuralHole(ast) => ast.get_number_of_fixed_holes(),
+            AST::Sequence(asts) => asts.iter().map(|ast| ast.get_number_of_fixed_holes()).sum(),
+            AST::For(v, subast, _, _) => {
+                match v {
+                    VarOrHole::Var(var) => 0,
+                    VarOrHole::Hole() => 1 + subast.get_number_of_fixed_holes()
+                }
+            },
+            AST::Produce(func, ast) => ast.get_number_of_fixed_holes(),
+            AST::Consume(func) => 0,
+            AST::Assign(func) => 0,
+            AST::StoreAt(func) => 0,
+        }
+    }
+
     fn get_next_main_var(&self) -> Option<Var> {
         match self {
             AST::Produce(_, subast) => subast.get_next_main_var(),
             AST::Consume(_) => None,
-            AST::For(v, _, _, _) => Some(v.clone()),
+            AST::For(v, subast, _, _) =>
+                match v {
+                    VarOrHole::Var(v) => Some(v.clone()),
+                    VarOrHole::Hole() => subast.get_next_main_var(),
+                },
             AST::Assign(_) => None,
             AST::StoreAt(_) => None,
             AST::StructuralHole(substr) => substr.get_next_main_var(),
@@ -140,7 +200,11 @@ impl ASTUtils for AST {
 
     fn get_iteration_variable(&self) -> Option<Var> {
         match self {
-            AST::For(var, _, _, _) => Some(var.clone()),
+            AST::For(var, _, _, _) =>
+                match var {
+                    VarOrHole::Var(v) => Some(v.clone()),
+                    VarOrHole::Hole() => None
+                }
             _ => None
         }
     }
@@ -181,7 +245,7 @@ impl ASTUtils for AST {
         match self {
             AST::Produce(_f, subast) => subast.has_structural_holes(),
             AST::Consume(_f) => false,
-            AST::For(_v, subast, _r, _p) => subast.has_structural_holes(),
+            AST::For(v, subast, _r, _p) => v.is_hole() || subast.has_structural_holes(),
             AST::Assign(_f) => false,
             AST::StoreAt(_f) => false,
             AST::StructuralHole(_s) => true,
@@ -222,8 +286,12 @@ pub fn get_store_at_internal(opts: &Options, parent_variable: &Option<&Var>, ast
         AST::Consume(_func) => {
             vec![]
         },
-        AST::For(var, ast, _range, _properties) => {
-            get_store_at_internal(opts, &Some(&var), ast)
+        AST::For(var, ast, _range, _properties) => match var {
+            VarOrHole::Var(v) => get_store_at_internal(opts, &Some(&v), ast),
+            VarOrHole::Hole() => panic!("Can't get store_at for a tree with holes") // to get the store at, we need the parent --- we should really fix this to enable store_at to have holes
+                                                                                    // also but ATM
+                                                                                    // not required
+                                                                                    // IIUC.
         },
         AST::Assign(_func) => {
             vec![]
@@ -307,8 +375,9 @@ fn get_compute_at_internal(opts: &Options, ast: &AST, producer: &Option<Func>, l
                         panic!("Consume at top level?")
                 }
             },
-            AST::For(var, subast, _range, _properties) => {
-                get_compute_at_internal(opts, subast, producer, &Some(var.clone()))
+            AST::For(var, subast, _range, _properties) => match var {
+                VarOrHole::Var(v) => get_compute_at_internal(opts, subast, producer, &Some(v.clone())),
+                VarOrHole::Hole() => panic!("Can't get compute at from tree without vars")
             },
         AST::Assign(_var) => {
             // TODo -- is there anything that we should do in this case?
@@ -420,9 +489,14 @@ fn get_loops_with_property(_opts: &Options, ast: &AST, current_producer: &Option
             let mut sub_results = get_loops_with_property(_opts, ast, current_producer, properties);
             match current_producer {
                 Some(p_name) =>
-                    for property in properties_matched {
-                        sub_results.push((p_name.clone(), var.clone(), property.clone()))
-                    }
+                    match var {
+                        VarOrHole::Var(v) => {
+                            for property in properties_matched {
+                                sub_results.push((p_name.clone(), v.clone(), property.clone()))
+                            }
+                        },
+                        VarOrHole::Hole() => panic!("Can't get loop properties on holey structure"),
+                    },
                 None => ()
             };
             // println!("Sub results length is {}", sub_results.len());

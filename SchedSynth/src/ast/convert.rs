@@ -4,6 +4,7 @@ use crate::ast::ast::Var;
 use crate::ast::ast::Func;
 use crate::ast::ast::Property;
 use crate::ast::ast::NumberOrHole;
+use crate::ast::ast::VarOrHole;
 use crate::sketch_parse::parser::SketchAST;
 use crate::sketch_parse::parser::ForRangeAST;
 use crate::sketch_parse::parser::ASTLoopProperty;
@@ -82,8 +83,12 @@ impl fmt::Display for AST {
     }
 }
 
-pub fn variable_to_var(variable: crate::sketch_parse::parser::Variable) -> Var {
-    Var { name: variable.name }
+pub fn variable_to_var(variable: crate::sketch_parse::parser::Variable) -> VarOrHole {
+    if variable.hole {
+        VarOrHole::Hole()
+    } else {
+        VarOrHole::Var(Var { name: variable.name })
+    }
 }
 
 pub fn variable_to_func(variable: crate::sketch_parse::parser::Variable) -> Func {
@@ -110,7 +115,7 @@ pub fn variable_to_func(variable: crate::sketch_parse::parser::Variable) -> Func
 }
 
 fn var_to_variable(var: Var) -> crate::sketch_parse::parser::Variable {
-    crate::sketch_parse::parser::Variable { name: var.name }
+    crate::sketch_parse::parser::Variable { name: var.name, hole: false }
 }
 
 fn ast_from_range(input: ForRangeAST) -> ForRange {

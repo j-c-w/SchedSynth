@@ -12,6 +12,7 @@ use crate::ast::ast::Func;
 use crate::ast::ast::Var;
 use crate::ast::convert::variable_to_var;
 use crate::ast::ast::AST;
+use crate::ast::ast::HoleOption;
 use crate::sketch_parse::parser::ASTNumberOrHole;
 use crate::shared::range_set::AnyIntegerSet;
 use crate::ast::convert::hole_from_ast_hole;
@@ -29,9 +30,9 @@ pub enum SplitsAST {
 fn splits_ast_to_reshape(ast: SplitsAST, func_lookup: &mut HashMap<Var, Func>) -> Reshape {
     match ast {
         SplitsAST::Split(var, (var1, var2), dim) => {
-            let new_var = variable_to_var(var);
-            let new_var1 = variable_to_var(var1);
-            let new_var2 = variable_to_var(var2);
+            let new_var = variable_to_var(var).get().unwrap(); // not allowed to ahve holes in reshape variables
+            let new_var1 = variable_to_var(var1).get().unwrap();
+            let new_var2 = variable_to_var(var2).get().unwrap();
             let new_func = func_lookup.get(&new_var).unwrap().clone();
 
             let new_dim = hole_from_ast_hole(dim);
@@ -44,9 +45,9 @@ fn splits_ast_to_reshape(ast: SplitsAST, func_lookup: &mut HashMap<Var, Func>) -
         },
         SplitsAST::Fuse((var1, var2), var) => {
             // note vars are in a different order from above.
-            let new_var1 = variable_to_var(var1);
-            let new_var2 = variable_to_var(var2);
-            let new_var = variable_to_var(var);
+            let new_var1 = variable_to_var(var1).get().unwrap();
+            let new_var2 = variable_to_var(var2).get().unwrap();
+            let new_var = variable_to_var(var).get().unwrap();
             let new_func = func_lookup.get(&new_var1).unwrap().clone();
             
             // keep the func_lookup table updated.
@@ -109,7 +110,7 @@ fn process_ident(opts: &Options, rule: Pair<Rule>) -> Variable {
                 println!("Got an ident");
             }
             let name = rule.as_str();
-            Variable{name: name.into()}
+            Variable{name: name.into(), hole: false}
         },
         _ => panic!("Unable to process non-ident sequence into variable")
     }

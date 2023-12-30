@@ -13,7 +13,8 @@ struct LoopParser;
 
 #[derive(Clone)]
 pub struct Variable {
-    pub name: String
+    pub name: String,
+    pub hole: bool
 }
 
 #[derive(Clone)]
@@ -168,7 +169,7 @@ fn process_ident(opts: &Options, sequence: Pair<Rule>) -> Variable {
                 println!("Got an ident");
             }
             let name = sequence.as_str();
-            Variable{name: name.into()}
+            Variable{name: name.into(), hole: false}
         },
         Rule::ident_or_hole => {
             if opts.debug_parser {
@@ -177,9 +178,9 @@ fn process_ident(opts: &Options, sequence: Pair<Rule>) -> Variable {
             
             let name = sequence.as_str();
             if name == "??" {
-                Variable{name: name.into()} // TODO -- need to return a hole here.
+                Variable{name: name.into(), hole: true} // TODO -- need to return a hole here.
             } else {
-                Variable{name: name.into()}
+                Variable{name: name.into(), hole: false}
             }
 
         }
@@ -374,11 +375,11 @@ fn process(opts: &Options, nesting_depth: i32, sequence: Pair<Rule>) -> SketchAS
                 // ??:
                 //   compute
                 SketchAST::StructuralHole(nesting_depth,
-                    Box::new(SketchAST::Assign(nesting_depth, Variable { name: "Inferred".to_string()} )))
+                    Box::new(SketchAST::Assign(nesting_depth, Variable { name: "Inferred".to_string(), hole: false} )))
             } else {
                 // I think the name of the assign isn't actually
                 // used anywhere relevant.
-                SketchAST::Assign(nesting_depth, Variable{ name: "Inferred".to_string() })
+                SketchAST::Assign(nesting_depth, Variable{ name: "Inferred".to_string(), hole: false })
             }
         }
         Rule::store_at => {

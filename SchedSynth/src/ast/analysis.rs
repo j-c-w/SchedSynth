@@ -4,6 +4,8 @@ use crate::ast::ast::AST;
 use crate::ast::ast::Var;
 use crate::ast::ast::Func;
 use crate::ast::ast::ForRange;
+use crate::ast::ast::VarOrHole;
+use crate::ast::ast::HoleOption;
 
 // recursively walk through the ast --- for every loop node (vect or for)
 // add to the lookup table so we can access the range that that variable
@@ -17,7 +19,12 @@ fn range_table_for_internal(opts: &Options, ast: &AST, table: &mut HashMap<Var, 
             ()
         },
         AST::For(var, ast, range, _properties) => {
-            table.insert(var.clone(), range.clone());
+            match var {
+                VarOrHole::Var(v) => {
+                    table.insert(v.clone(), range.clone());
+                },
+                VarOrHole::Hole() => (),
+            };
             range_table_for_internal(opts, ast, table)
         },
         AST::Assign(_var) => (),
@@ -54,11 +61,12 @@ fn func_table_internal(opts: &Options, ast: &AST, current_producer: &Option<Func
         AST::Consume(_var) => {
 			// nothing
         },
-        AST::For(var, body, _, _properties) => {
+        AST::For(var_hole, body, _, _properties) => {
+            let var = var_hole.get().unwrap(); // need to have non-hole at this point.
             // Note that this probably isn't the binding order we'd really
             // like to have --- but it should be good enough --- really
             // need to make sure we make variables
-            if !table.contains_key(var) {
+            if !table.contains_key(&var) {
                 if let Some(producer) = current_producer {
                     table.insert(var.clone(), producer.clone());
                     if opts.debug_func_table { 
