@@ -4,7 +4,7 @@ colon = { ":" }
 
 number = { digit+ }
 number_or_hole = { "??" | "<" ~ number_set_hole ~ ">" | number }
-number_set_hole = { "TODO" }
+number_set_hole = { ident }
 range = { whitespace_plus ~ "in" ~ whitespace_star ~ "[" ~ number_or_hole ~ whitespace_star ~ "," ~ whitespace_star ~ number_or_hole ~ whitespace_star ~ "]" }
 
 ident = { (alpha | digit) + }

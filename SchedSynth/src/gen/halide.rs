@@ -6,6 +6,8 @@ use crate::gen::target::Target;
 use crate::gen::target::Hole;
 use crate::gen::target::HoleOption;
 use crate::gen::target::is_hole;
+use crate::gen::target::HoleBindingMap;
+use crate::gen::target::hole_value_to_option;
 use crate::ast::ast::*;
 use crate::reshape::reshape::Reshape;
 use crate::ast::ast::Property;
@@ -189,6 +191,112 @@ impl TargetHoles for HalideProgram {
         }
 
         return true;
+    }
+
+    fn fill_holes(&mut self, map: &HoleBindingMap) {
+        for command in &mut self.commands {
+            match command {
+                HalideCommand::Vectorize(ref mut hf, ref mut hv) => {
+                    if is_hole(hf) {
+                        assert!(false) // unsupported hole type
+                    }
+                    if is_hole(hv) {
+                        assert!(false) // unsupported hole type
+                    }
+                },
+                HalideCommand::Parallel(ref mut hf, ref mut hv) => {
+                    if is_hole(hf) {
+                        assert!(false) // unsupported hole type
+                    }
+                    if is_hole(hv) {
+                        assert!(false) // unsupported hole type
+                    }
+                },
+                HalideCommand::Unroll(ref mut hf, ref mut hv, ref mut hi) => {
+                    if is_hole(hf) {
+                        assert!(false) // unsupported hole type
+                    }
+                    if is_hole(hv) {
+                        assert!(false) // unsupported hole type
+                    }
+                    if is_hole(hi) {
+                        *hi = hole_value_to_option(map.map.get(&hi.to_string()).unwrap().clone());
+                    }
+                },
+                HalideCommand::Tile() => {
+                    // TODO
+                },
+                HalideCommand::ComputeAt(ref mut hf1, ref mut hf2, ref mut hv) => {
+                    if is_hole(hf1) {
+                        assert!(false) // unsupported hole type
+                    }
+                    if is_hole(hf2) {
+                        assert!(false) // unsupported hole type
+                    }
+                    if is_hole(hv) {
+                        assert!(false) // unsupported hole type
+                    }
+                },
+                HalideCommand::StoreAt(ref mut hf1, ref mut hf2, ref mut hv) => {
+                    if is_hole(hf1) {
+                        assert!(false) // unsupported hole type
+                    }
+                    if is_hole(hf2) {
+                        assert!(false) // unsupported hole type
+                    }
+                    if is_hole(hv) {
+                        assert!(false) // unsupported hole type
+                    }
+                },
+                HalideCommand::ComputeRoot(ref mut hf) => {
+                    if is_hole(hf) {
+                        assert!(false) // unsupported hole type
+                    }
+                },
+                HalideCommand::Reorder(ref mut hf, ref mut hv) => {
+                    if is_hole(hf) {
+                        assert!(false) // unsupported hole type
+                    }
+                    if is_hole(&hv.0) {
+                        assert!(false) // unsupported hole type
+                    }
+                    if is_hole(&hv.1) {
+                        assert!(false) // unsupported hole type
+                    }
+                },
+                HalideCommand::Split(ref mut hf, ref mut hv, ref mut hvs, ref mut hi) => {
+                    if is_hole(hf) {
+                        assert!(false) // unsupported hole type
+                    }
+                    if is_hole(hv) {
+                        assert!(false) // unsupported hole type
+                    }
+                    if is_hole(&hvs.0) {
+                        assert!(false) // unsupported hole type
+                    }
+                    if is_hole(&hvs.1) {
+                        assert!(false) // unsupported hole type
+                    }
+                    if is_hole(hi) {
+                        *hi = hole_value_to_option(map.map.get(&hi.to_string()).unwrap().clone());
+                    }
+                },
+                HalideCommand::Fuse(ref mut hf, ref mut hvs, ref mut hv) => {
+                    if is_hole(hf) {
+                        assert!(false) // unsupported hole type
+                    }
+                    if is_hole(&hvs.0) {
+                        assert!(false) // unsupported hole type
+                    }
+                    if is_hole(&hvs.1) {
+                        assert!(false) // unsupported hole type
+                    }
+                    if is_hole(hv) {
+                        assert!(false) // unsupported hole type
+                    }
+                },
+            }
+        }
     }
 }
 

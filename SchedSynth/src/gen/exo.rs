@@ -1,6 +1,7 @@
 use crate::gen::target::TargetGenerate;
 use crate::gen::target::TargetLower;
 use crate::gen::target::Target;
+use crate::gen::target::HoleBindingMap;
 use crate::ast::ast::*;
 use crate::reshape::reshape::Reshape;
 use crate::ast::ast::Property;
@@ -59,6 +60,7 @@ impl TargetLower for ExoProgram {
 impl TargetHoles for ExoProgram {
     fn get_holes(&self) -> Vec<Box<dyn Hole>> { vec![] }
     fn can_resolve_holes(&self, _opts: &Options) -> bool { true }
+    fn fill_holes(&mut self, map: &HoleBindingMap) { }
 }
 
 impl ToString for ExoProgram {

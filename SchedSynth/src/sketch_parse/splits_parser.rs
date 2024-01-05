@@ -15,6 +15,7 @@ use crate::ast::ast::AST;
 use crate::ast::ast::HoleOption;
 use crate::sketch_parse::parser::ASTNumberOrHole;
 use crate::shared::range_set::AnyIntegerSet;
+use crate::shared::range_set::set_from_name;
 use crate::ast::convert::hole_from_ast_hole;
 
 #[derive(Parser)]
@@ -76,23 +77,25 @@ impl ToString for SplitsAST
     }
 }
 
-fn process_factor(_opts: &Options, rule: Pair<Rule>) -> ASTNumberOrHole {
+fn process_factor(opts: &Options, rule: Pair<Rule>) -> ASTNumberOrHole {
     match rule.as_rule() {
         Rule::factor_or_hole => {
             // convert rule string into i32
-			let inner = rule.clone().into_inner();
-
-			if inner.len() <= 1 {
-				let factor_str = rule.as_span().as_str();
+			let mut inner = rule.clone().into_inner();
+            let factor_str = rule.as_span().as_str();
+			if !factor_str.starts_with("<") {
 				if factor_str == "??" {
                     ASTNumberOrHole::Hole(AnyIntegerSet())
 				} else {
+                    println!("Factorint {}", factor_str);
 					let factor_int = factor_str.parse::<i32>().unwrap();
 					ASTNumberOrHole::Number(factor_int)
 				}
-			} else {
-				// This is a set
-				panic!("Unimplemented for {} ({})", rule.as_span().as_str(), inner.len())
+			} else { // starts with <
+                // This is a set --- tOdo -- need to process for arbitrary
+                // sets not just the named ones.
+                // This should be co-ordinated with the full grammar.
+                ASTNumberOrHole::Hole(set_from_name(factor_str[1..factor_str.len() - 1].to_string()))
 			}
         },
         Rule::factor => {

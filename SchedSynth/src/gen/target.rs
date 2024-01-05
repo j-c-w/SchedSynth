@@ -105,6 +105,13 @@ impl TargetHoles for BackendInstance {
             BackendInstance::Exo(ep) => ep.can_resolve_holes(opts)
         }
     }
+
+    fn fill_holes(&mut self, map: &HoleBindingMap) {
+        match self {
+            BackendInstance::Halide(hp) => hp.fill_holes(map),
+            BackendInstance::Exo(ep) => ep.fill_holes(map)
+        }
+    }
 }
 
 pub fn newBackend(typ: Backend) -> BackendInstance {
@@ -129,6 +136,7 @@ pub trait TargetHoles {
     // to enable building and profiling.  If not,
     // then we can't resolve holes.
     fn can_resolve_holes(&self, opts: &Options) -> bool;
+    fn fill_holes(&mut self, map: &HoleBindingMap);
 }
 
 pub trait Hole {
@@ -137,6 +145,7 @@ pub trait Hole {
     // TODO -- need a function to fill holes by name.
 }
 
+#[derive(Copy,Clone)]
 pub enum HoleValue {
     IntHole(i32)
 }
@@ -146,6 +155,12 @@ pub enum HoleOption<T> {
     Hole(String, HashSet<T>),
     IntHole(String, IntegerRangeSet),
     Value(T)
+}
+
+pub fn hole_value_to_option(value: HoleValue) -> HoleOption<i32> {
+    match value {
+        HoleValue::IntHole(i) => HoleOption::Value(i),
+    }
 }
 
 impl<T: std::fmt::Display> Hole for HoleOption<T> {

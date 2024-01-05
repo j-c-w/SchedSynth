@@ -120,3 +120,23 @@ pub fn AnyIntegerSet() -> IntegerRangeSet {
         ranges: vec![RangeType::Between(-2048, 2048)]
     }
 }
+
+pub fn set_from_name(name: String) -> IntegerRangeSet {
+    match name.as_str() {
+        "Positives" => PositiveIntegerSet(),
+        "SmallPositives" => SmallPositiveInegerSet(),
+        _ => panic!("Unknown set name {}", name)
+    }
+}
+
+pub fn PositiveIntegerSet() -> IntegerRangeSet {
+    IntegerRangeSet {
+        ranges: vec![RangeType::Between(1, 2048)]
+    }
+}
+
+pub fn SmallPositiveInegerSet() -> IntegerRangeSet {
+    IntegerRangeSet {
+        ranges: vec![RangeType::Between(1, 64)]
+    }
+}

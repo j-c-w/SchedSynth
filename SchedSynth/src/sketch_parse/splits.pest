@@ -2,7 +2,7 @@ alpha = { 'a'..'z' | 'A'..'Z' | "." | "_" }
 digit = { '0'..'9' }
 factor = {digit+}
 factor_or_hole = { factor | "??" | "<" ~ integer_set ~ ">" }
-integer_set = { "TODO" }
+integer_set = { ident }
 
 ident = { (alpha|digit)+ }
 whitespace = { " " | "\t" }

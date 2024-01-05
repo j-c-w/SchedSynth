@@ -6,6 +6,7 @@ use std::fs;
 use crate::options::options::Options;
 use crate::shared::range_set::IntegerRangeSet;
 use crate::shared::range_set::AnyIntegerSet;
+use crate::shared::range_set::set_from_name;
 
 #[derive(Parser)]
 #[grammar = "sketch_parse/grammar.pest"]
@@ -200,7 +201,13 @@ fn process_number(opts: &Options, num: Pair<Rule>) -> ASTNumberOrHole {
 
 			if inner.len() > 1 {
 				// This is a number_set_hole
-				panic!("TODO")
+                // TODO --- we want to support manually-specified sets
+                // eventually. we need to support that.
+                let _ = inner.next();
+                let set_name = process_ident(opts, inner.next().unwrap());
+                let _ = inner.next();
+
+                ASTNumberOrHole::Hole(set_from_name(set_name.name))
 			} else {
 				let num_str = num.as_str();
 				if num_str == "??" {

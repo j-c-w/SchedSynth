@@ -53,8 +53,11 @@ pub fn best_schedule<T: Target>(opts: &Options, schedules: Vec<T>) -> T {
     if schedules.len() == 0 {
         panic!("Trying to get best schedule form empty list");
     } else if schedules.len() == 1 {
-        return schedules[0].clone();
+        let mut result_schedule = schedules[0].clone();
+        result_schedule.fill_holes(&bindings[0]);
+        return result_schedule;
     } else {
+        // TODO -- fill holes.
         let string_schedules = schedules.iter().map(|x| x.generate()).collect();
         let rankings = evaluate_options(opts, string_schedules);
         let best_program = get_best_ranking(&rankings);
@@ -151,7 +154,7 @@ if __name__ == '__main__':
 
     // Fill up the opentuner template above.
     let with_names = header.replace("NAME_HOLE", &names);
-    let with_filename = with_names.replace("FILE_NAME", "runnable.cpp");
+    let with_filename = with_names.replace("FILE_NAME", &new_runnable_name);
     let flags = schedule.get_required_build_flags(opts).join(" ");
     let with_flags = with_filename.replace("EXTRA_BUILD_FLAGS", &flags);
     return with_flags.replace("MANIPULATOR_HOLE", &manipulator);
@@ -206,20 +209,18 @@ fn mappings_from_opentuner_output(output_string: String) -> HoleBindingMap {
     // name: value.
     // Put those into the map in a HoleBindingMap.
     let mut map = HashMap::<String, HoleValue>::new();
-    let data = serde_json::from_str::<(String, String)>(&output_string);
+    // parse json object from the string, which looks like '{ ... }'
+    // TODO --- parse the json right into the hashmap.
+    let formatted = output_string.replace("\'", "\"");
+    let data: HashMap<String, i32> = serde_json::from_str(&formatted).unwrap();
     // iterate over the json, creating a HoleValue to put 
     // in the map for every element.
-    for (key, value) in data.iter() {
+    for (key, value) in data {
         // check if value is an int
-        if let Ok(int_value) = value.parse::<i32>() {
-            // create a HoleValue with the int
-            let hole_value = HoleValue::IntHole(int_value);
-            // insert the HoleValue into the map
-            map.insert(key.to_string(), hole_value);
-        } else {
-            // todo -- support.
-            panic!("Result is non-int type")
-        }
+        // create a HoleValue with the int
+        let hole_value = HoleValue::IntHole(value);
+        // insert the HoleValue into the map
+        map.insert(key.to_string(), hole_value);
     }
 
     HoleBindingMap { map: map }
