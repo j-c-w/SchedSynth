@@ -2,6 +2,7 @@ use crate::ast::ast::AST;
 use crate::ast::ast::ForRange;
 use crate::ast::ast::Var;
 use crate::ast::ast::Func;
+use crate::ast::ast::Buf;
 use crate::ast::ast::Property;
 use crate::ast::ast::NumberOrHole;
 use crate::ast::ast::VarOrHole;
@@ -70,6 +71,7 @@ impl fmt::Display for AST {
             },
             AST::Assign(ref var) => write!(f, "assign {}", var),
             AST::StoreAt(ref var) => write!(f, "store {} here", var),
+            AST::Prefetch(ref buf, ref var, ref stride) => write!(f, "prefetch {} along dimension {} (stride {}) here", var),
             AST::StructuralHole(ref ast) => write!(f, "structural hole ({})", ast),
             AST::Sequence(ref ast) => {
                 let mut s = String::new();
@@ -114,6 +116,12 @@ pub fn variable_to_func(variable: crate::sketch_parse::parser::Variable) -> Func
     Func { name: name_before_dot.into(), update: name_after_dot}
 }
 
+pub fn variable_to_buf (variable: crate::sketch_parse::parser::Variable) -> Buf {
+	assert!(!variable.hole, "Not allowed to have buf with holes");
+
+	Buf { name: variable.name }
+}
+
 fn var_to_variable(var: Var) -> crate::sketch_parse::parser::Variable {
     crate::sketch_parse::parser::Variable { name: var.name, hole: false }
 }
@@ -141,6 +149,9 @@ pub fn ast_from_sketch_ast(input: SketchAST) -> AST {
         },
         SketchAST::StoreAt(_nesting, var) => {
             AST::StoreAt(variable_to_func(var))
+        },
+        SketchAST::Prefetch(_nesting, buf, var, stride) => {
+            AST::Prefetch(variable_to_buf(buf), variable_to_func(var), hole_from_ast_hole(stride))
         },
         SketchAST::StructuralHole(_nesting, nest) => {
             AST::StructuralHole(Box::new(ast_from_sketch_ast(*nest)))

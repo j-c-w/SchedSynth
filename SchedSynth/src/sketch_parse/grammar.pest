@@ -6,6 +6,8 @@ number = { digit+ }
 number_or_hole = { "??" | "<" ~ number_set_hole ~ ">" | number }
 number_set_hole = { ident }
 range = { whitespace_plus ~ "in" ~ whitespace_star ~ "[" ~ number_or_hole ~ whitespace_star ~ "," ~ whitespace_star ~ number_or_hole ~ whitespace_star ~ "]" }
+stride = { "(" ~ whitespace_star ~ "stide:" ~ whitespace_star ~ number_or_hole ~ whitespace_star ~ ")" }
+stride = { whitespace_plus ~ "in" ~ whitespace_star}
 
 ident = { (alpha | digit) + }
 ident_or_hole = { ident | "??" }
@@ -15,7 +17,8 @@ indent = { "  " }
 
 indent_nest = { indent* }
 
-optional_range = { ( range)? }
+optional_range = { (range)? }
+optional_stide = { (stride)? }
 
 produce = { "def" ~ whitespace_plus ~ ident_or_hole ~ colon }
 consume = { "compute" ~ whitespace_plus ~ ident_or_hole}
@@ -25,7 +28,8 @@ parallel = { "parallel" ~ whitespace_plus ~ ident_or_hole ~ optional_range ~ col
 assignment = { "compute" | "??" }
 store_at = { "alloc" ~ whitespace_plus ~ ident_or_hole }
 unroll = { "unrolled" ~ whitespace_plus ~ ident_or_hole ~ optional_range ~ whitespace_plus ~ number_or_hole ~ whitespace_star ~ colon}
-structure_hole = { "??" ~ whitespace_star ~ colon}
+prefetch = { "prefetch" ~ whitespace_plus ~ ident ~ whitespace_plus ~ "at" ~ whitespace_plus ~ ident_or_hole ~ optional_stride }
+structure_hole = { "??" ~ whitespace_star ~ colon }
 
 whitespace = { " " | "\t" }
 whitespace_plus = { whitespace+ }

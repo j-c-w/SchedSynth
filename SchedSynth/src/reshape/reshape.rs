@@ -172,6 +172,9 @@ fn apply_reshape(ast: &AST, reshape: &Reshape) -> (AST, bool) {
                 AST::StoreAt(func) => {
                     (AST::StoreAt(func.clone()), false)
                 }
+				AST::Prefetch(func, var, stride) => {
+					(AST::Prefetch(func.clone(), var.clone(), stride.clone()), false)
+				}
                 AST::StructuralHole(ast) => {
                     let (new_ast, applied) = apply_reshape(&*ast, reshape);
                     (AST::StructuralHole(Box::new(new_ast)), applied)
@@ -298,6 +301,7 @@ fn enforce_nested(opts: &Options, ast: &AST, outer: Var, inner: Var, func_lookup
         },
         AST::Assign(_func) => vec![],
         AST::StoreAt(_func) => vec![],
+		AST::Prefetch(_func) => vec![],
         AST::StructuralHole(subast) => {
             enforce_nested(opts, &subast, outer.clone(), inner.clone(), func_lookup, found_outer, found_inner)
         },

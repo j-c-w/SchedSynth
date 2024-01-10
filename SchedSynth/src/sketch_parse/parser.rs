@@ -32,6 +32,7 @@ pub enum SketchAST { // nodes have nesting, <other stuff>
     Assign(i32, Variable), // variable name
     StoreAt(i32, Variable), // variable name
     Sequence(i32, Vec<SketchAST>), // list of sub-asts
+	Prefetch(i32, Variable, Variable, ASTNumberOrHole),
     StructuralHole(i32, Box<SketchAST>) // optional sub-asts.
 }
 
@@ -103,6 +104,8 @@ impl ToString for SketchAST {
             },
             SketchAST::Assign(_, n) => format!("compute {}", n.to_string().clone()),
             SketchAST::StoreAt(_, n) => format!("store {} here", n.to_string().clone()),
+            SketchAST::Prefetch(_, buf, dim, stride) => format!("prefetch {} at {} (stride {})",
+			buf.to_string(), dim.to_string(), stride.to_string()),
             SketchAST::Sequence(_, subvars) => format!("Sequence({})", subvars.iter().map(|x|
                     x.to_string()).collect::<Vec<String>>().join(",")),
             SketchAST::StructuralHole(_, subvar) => format!("StructuralHole({})", subvar.to_string()),
@@ -132,6 +135,9 @@ impl AST for SketchAST {
             },
             SketchAST::StoreAt(_, _n) => {
                 vec![]
+            },
+            SketchAST::Prefetch(_, _buf, _dim, _stride) => {
+                vec![]
             }
             SketchAST::StructuralHole(_nest, child) => vec![child.as_ref().clone()],
             SketchAST::Sequence(_nest, children) => children.to_vec(),
@@ -145,6 +151,7 @@ impl AST for SketchAST {
             SketchAST::For(_, _, _, _, _) => "For".into(),
             SketchAST::Assign(_, _) => "Assign".into(),
             SketchAST::StoreAt(_, _) => "StoreAt".into(),
+            SketchAST::Prefetch(_, _, _, _) => "Prefetch".into(),
             SketchAST::StructuralHole(_, _) => "StructuralHole".into(),
             SketchAST::Sequence(_, _) => "Sequence".into(),
         }
@@ -159,6 +166,7 @@ impl AST for SketchAST {
             SketchAST::StructuralHole(_, child) => child.size() + 1,
             SketchAST::Sequence(_, children) => children.iter().map(|child| child.size()).sum(),
             SketchAST::StoreAt(_, _) => 1,
+            SketchAST::Prefetch(_, _) => 1,
         }
     }
 }
@@ -221,6 +229,27 @@ fn process_number(opts: &Options, num: Pair<Rule>) -> ASTNumberOrHole {
 		}
         _ => panic!("not a number {}", num.as_str())
     }
+}
+
+fn process_stride(opts: &Options, sequence: Pair<Rule>) -> ASTNumberOrHole {
+	match sequence.as_rule() {
+		Rule::optional_stide => {
+			let mut inner = sequence.into_inner();
+			
+			if inner.len() > 0 {
+				let mut stride = inner.next().unwrap().into_inner();
+
+				let _ = stride.next(); // whitespace
+				let _ = stride.next(); // whitespace
+				let stride_value = process_number(opts, range.next().unwrap());
+			} else {
+				// don't have a stride
+				// default stride to 1
+				ASTNumberOrHole::Number(1)
+			}
+		},
+		_ => panic!("Unexpected non-stride!");
+	}
 }
 
 fn process_range(opts: &Options, sequence: Pair<Rule>) -> ForRangeAST {
@@ -445,6 +474,22 @@ fn process(opts: &Options, nesting_depth: i32, sequence: Pair<Rule>) -> SketchAS
                 Box::new(SketchAST::Sequence(nesting_depth, Vec::new())),
                 range, vec![ASTLoopProperty::Unroll(amount)])
         }
+		Rule::prefetch => {
+			if opts.debug_parser {
+				println!("Got prefetch");
+			}
+
+			let mut inner = sequence.into_inner();
+			let _ = inner.next(); // whitespace
+			let buffer_id = process_ident(opts, inner.next().unwrap()); // this one can't be a hole
+			// -- dont have the info to fill it.
+			let _ = inner.next(); // whitespace
+			let _ = inner.next(); // whitespace
+			let dimension_id = process_ident(opts, inner.next().unwrap());
+			let stride = process_stride(opts, inner.next().unwrap());
+
+			SketchAST::Prefetch(nesting_depth, buffer_id, dimension_id, stride);
+		}
         Rule::EOI => {
             if opts.debug_parser {
                 println!("Got an EOI");
@@ -473,6 +518,7 @@ fn get_nest_depth(v: &SketchAST) -> &i32 {
         SketchAST::Sequence(n, _) => n,
         SketchAST::StructuralHole(n, _) => n,
         SketchAST::StoreAt(n, _) => n,
+        SketchAST::Prefetch(n, _, _, _) => n,
     }
 }
 
@@ -498,6 +544,7 @@ fn set_nest(v: &SketchAST, nest: SketchAST) -> SketchAST {
                 SketchAST::StructuralHole(n.clone(), Box::new(nest))
             },
             SketchAST::StoreAt(_n, _var) => panic!("Can't set nest to a store"),
+            SketchAST::Prefetch(_n, _var) => panic!("Can't set nest to a prefetch"),
             SketchAST::Assign(_n, _var) => panic!("Can't set nest to an assign"),
             SketchAST::Sequence(_n, _nest) => panic!("Can't set nest to a sequence"),
         }

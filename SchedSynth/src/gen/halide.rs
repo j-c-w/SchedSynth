@@ -22,6 +22,11 @@ pub struct HFunc {
 }
 
 #[derive(Clone)]
+pub struct HBuf {
+	pub name: String
+}
+
+#[derive(Clone)]
 pub struct HVar {
     pub name: String
 }
@@ -41,6 +46,12 @@ impl std::fmt::Display for HVar {
     }
 }
 
+impl std::fmt::Display for HBuf {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(f, "{}", self.name)
+    }
+}
+
 #[derive(Clone)]
 pub enum HalideCommand {
     Vectorize(HoleOption<HFunc>, HoleOption<HVar>), // HFunc to vectorize
@@ -49,6 +60,7 @@ pub enum HalideCommand {
     Tile(), // HFunc to tile, 
     ComputeAt(HoleOption<HFunc>, HoleOption<HFunc>, HoleOption<HVar>), // Compute func at func at varaiable
     StoreAt(HoleOption<HFunc>, HoleOption<HFunc>, HoleOption<HVar>), // store func at variable
+    Prefetch(HoleOption<HBuf>, HoleOption<HVar>, HoleOption<i32>), // store func at variable
     ComputeRoot(HoleOption<HFunc>), // Compute func at func at varaiable
     Reorder(HoleOption<HFunc>, (HoleOption<HVar>, HoleOption<HVar>)), // Reoder <to> hvar, hvar
     Split(HoleOption<HFunc>, HoleOption<HVar>, (HoleOption<HVar>, HoleOption<HVar>), HoleOption<i32>), // split var into (var, var) with tiling factor i32
@@ -112,6 +124,17 @@ impl TargetHoles for HalideProgram {
                         holes.push(Box::new(hv.clone()))
                     }
                 },
+				HalideCommand::Prefetch(ref buf, ref dim, ref stride) => {
+					if is_hole(buf) {
+						holes.push(Box::new(buf.clone()))
+					}
+					if is_hole(dim) {
+						holes.push(Box::new(dim.clone()))
+					}
+					if is_hole(stride) {
+						holes.push(Box::new(stride.clone()))
+					}
+				}
                 HalideCommand::ComputeRoot(ref hf) => {
                     if is_hole(hf) {
                         holes.push(Box::new(hf.clone()))
@@ -248,6 +271,19 @@ impl TargetHoles for HalideProgram {
                         assert!(false) // unsupported hole type
                     }
                 },
+				HalideCommand::Prefetch(ref mut buf, ref mut dim, ref mut stride) => {
+					if is_hole(buf) {
+						assert!(false)
+					}
+
+					if is_hole(dim) {
+						assert!(false)// should be able to handle this type of hole tbh.
+					}
+
+					if is_hole(stride) {
+                        *stride = hole_value_to_option(map.map.get(&stride.to_string()).unwrap().clone());
+					}
+				},
                 HalideCommand::ComputeRoot(ref mut hf) => {
                     if is_hole(hf) {
                         assert!(false) // unsupported hole type
@@ -414,6 +450,19 @@ impl TargetLower for HalideProgram {
             halide_commands.push(HalideCommand::StoreAt(v(hfunc), v(hfunc2), v(hhvar)));
         }
         self.commands.append(&mut halide_commands)
+    }
+
+    fn to_prefetch(&mut self, commands: Vec<(Buf, Var, NumberOrHole)>) {
+        let mut halide_commands = Vec::new();
+        for (buf, var, stride) in commands {
+            let hbuf = HBuf { name: buf.name };
+            let hvar = HVar { name: var.name };
+            let hstride = number_or_hole_to_hole_option(stride);
+
+            halide_commands.push(HalideCommand::Prefetch(hbuf, hvar, hstride));
+        }
+
+        self.commands.append(&mut halide_commands);
     }
 
     // turn the var var var into this:

@@ -23,6 +23,11 @@ pub struct Func {
     pub update: Option<i32>,
 }
 
+#[derive(Clone,Hash,Eq,PartialEq)]
+pub struct Buf {
+	pub name: String
+}
+
 #[derive(Clone,Eq)]
 pub enum NumberOrHole {
 	Number(i32),
@@ -53,6 +58,7 @@ pub enum AST {
     Assign(Func),
     StoreAt(Func),
     StructuralHole(Box<AST>),
+	Prefetch(Buf, VarOrHole, NumberOrHole),
     Sequence(Vec<AST>)
 }
 
@@ -116,6 +122,12 @@ impl std::fmt::Display for NumberOrHole {
 	}
 }
 
+impl std::fmt::Display for Buf {
+	fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+		write!(f, "Buf:{}", self.name)
+	}
+}
+
 impl ASTUtils for AST {
     fn size(&self) -> i32 {
         match self {
@@ -124,6 +136,7 @@ impl ASTUtils for AST {
             AST::For(var, ast, for_range, properties) => 1 + ast.size() + properties.len() as i32,
             AST::Assign(func) => 1,
             AST::StoreAt(func) => 1,
+            AST::Prefetch(buf, index, stride) => 1,
             AST::StructuralHole(ast) => 1 + ast.size(),
             AST::Sequence(asts) => asts.iter().map(|ast| ast.size()).sum()
         }
@@ -166,10 +179,16 @@ impl ASTUtils for AST {
                     VarOrHole::Hole() => 1 + subast.get_number_of_fixed_holes()
                 }
             },
-            AST::Produce(func, ast) => ast.get_number_of_fixed_holes(),
-            AST::Consume(func) => 0,
-            AST::Assign(func) => 0,
-            AST::StoreAt(func) => 0,
+            AST::Produce(_func, ast) => ast.get_number_of_fixed_holes(),
+            AST::Consume(_func) => 0,
+            AST::Assign(_func) => 0,
+            AST::StoreAt(_func) => 0,
+            AST::Prefetch(_buf, var, _) => {
+				assert!(!var.is_hole()); // do not support structural holes
+				// in prefetches.  THis assert can just be deleted
+				// provided that var-filling is implemented
+				0
+			},
         }
     }
 
@@ -184,6 +203,7 @@ impl ASTUtils for AST {
                 },
             AST::Assign(_) => None,
             AST::StoreAt(_) => None,
+            AST::Prefetch(_) => None,
             AST::StructuralHole(substr) => substr.get_next_main_var(),
             AST::Sequence(asts) => {
                 // Follow mainline
@@ -248,6 +268,7 @@ impl ASTUtils for AST {
             AST::For(v, subast, _r, _p) => v.is_hole() || subast.has_structural_holes(),
             AST::Assign(_f) => false,
             AST::StoreAt(_f) => false,
+            AST::Prefetch(_f) => false,
             AST::StructuralHole(_s) => true,
             AST::Sequence(subasts) => {
                 for ast in subasts {
@@ -306,6 +327,9 @@ pub fn get_store_at_internal(opts: &Options, parent_variable: &Option<&Var>, ast
                 }
             }
         },
+		AST::Prefetch(_, _, _) => {
+			vec![]
+		}
         AST::StructuralHole(ast) => {
             get_store_at_internal(opts, parent_variable, ast)
         },
@@ -384,6 +408,9 @@ fn get_compute_at_internal(opts: &Options, ast: &AST, producer: &Option<Func>, l
             vec![]
         },
         AST::StoreAt(_var) => {
+            vec![]
+        },
+        AST::Prefetch(_var) => {
             vec![]
         },
         AST::StructuralHole(subast) => {
@@ -505,6 +532,7 @@ fn get_loops_with_property(_opts: &Options, ast: &AST, current_producer: &Option
         },
         AST::Assign(_) => Vec::new(),
         AST::StoreAt(_) => Vec::new(),
+        AST::Prefetch(_) => Vec::new(),
         AST::StructuralHole(subast) => {
             get_loops_with_property(_opts, subast, &current_producer, properties)
         },
@@ -573,6 +601,9 @@ fn remove_subfuncs(ast: &AST) -> AST {
         AST::StoreAt(func) => {
             AST::StoreAt(func.clone())
         },
+		AST::Prefetch(buf, var, stride) => {
+			AST::Prefetch(buf.clone(), var.clone(), stride.clone())
+		}
         AST::StructuralHole(ast) => {
             AST::StructuralHole(Box::new(remove_subfuncs(ast)))
         },
@@ -597,13 +628,14 @@ pub fn split_ast_into_funcs(ast: &AST) -> HashMap<Func, AST> {
             funcs.extend(split_ast_into_funcs(&ast));
             funcs
         },
-        AST::Consume(func) => funcs,
-        AST::For(var, ast, range, props) => {
+        AST::Consume(_func) => funcs,
+        AST::For(_var, ast, _range, _props) => {
             funcs.extend(split_ast_into_funcs(&ast));
             funcs
         },
-        AST::Assign(func) => funcs,
-        AST::StoreAt(func) => funcs,
+        AST::Assign(_func) => funcs,
+        AST::StoreAt(_func) => funcs,
+        AST::Prefetch(_func) => funcs,
         AST::StructuralHole(ast) => {
             funcs.extend(split_ast_into_funcs(&ast));
             funcs
@@ -636,6 +668,9 @@ pub fn get_all_funcnames(ast: &AST) -> Vec<Func> {
         AST::StoreAt(_func) => {
             vec![]
         },
+        AST::Prefetch(_, _, _) => {
+            vec![]
+        },
         AST::StructuralHole(ast) => {
             get_all_funcnames(ast)
         },
@@ -643,6 +678,39 @@ pub fn get_all_funcnames(ast: &AST) -> Vec<Func> {
             let mut res = vec![];
             for ast in asts {
                 res.append(&mut get_all_funcnames(ast));
+            }
+            res
+        }
+    }
+}
+
+pub fn get_prefetch(ast: &AST) -> Vec<(Buf, Var, NumberOrHole)> {
+    match ast {
+        AST::Produce(func, ast) => {
+            get_prefetches(ast);
+        },
+        AST::Consume(func) => {
+            vec![]
+        },
+        AST::For(_var, ast, _range, _props) => {
+            get_prefetches(ast)
+        },
+        AST::Assign(_func) => {
+            vec![]
+        },
+        AST::StoreAt(_func) => {
+            vec![]
+        },
+        AST::Prefetch(func, var, stride) => {
+            vec![(func.clone(), var.clone(), stride.clone())]
+        },
+        AST::StructuralHole(ast) => {
+            get_prefetches(ast)
+        },
+        AST::Sequence(asts) => {
+            let mut res = vec![];
+            for ast in asts {
+                res.append(&mut get_prefetches(ast));
             }
             res
         }

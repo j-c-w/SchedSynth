@@ -151,6 +151,7 @@ fn hole_structure_builder(ast: &AST, map: &HashMap<Var, i32>) -> Vec<HoleStructu
             vec![],
         AST::StoreAt(_f) =>
             vec![],
+		AST::Prefetch(_buf, _var, _stride) => vec![],
         AST::StructuralHole(subast) => {
             let mut result = hole_structure_builder(&subast, map);
             result.insert(0, HoleStructure::StructuralHole());
@@ -182,6 +183,7 @@ fn hole_structure_builder(ast: &AST, map: &HashMap<Var, i32>) -> Vec<HoleStructu
     }
 }
 
+// Build a map from var to name of that var in the ILP formulation (an int)
 fn map_builder(target_ast: &AST, current_map: &mut HashMap<Var, i32>, current_max: &mut i32) {
     match target_ast {
         AST::Produce(_f, subast) =>
@@ -195,6 +197,7 @@ fn map_builder(target_ast: &AST, current_map: &mut HashMap<Var, i32>, current_ma
         },
         AST::Assign(_f) => (),
         AST::StoreAt(_f) => (),
+        AST::Prefetch(_, _, _) => (),
         AST::StructuralHole(subast) =>
             map_builder(subast, current_map, current_max),
         AST::Sequence(fs) => {
@@ -297,6 +300,8 @@ fn fill_holes(ast: &AST, var_order: &Vec<Var>) -> AST {
             AST::Assign(f.clone()),
         AST::StoreAt(f) =>
             AST::StoreAt(f.clone()),
+        AST::Prefetch(buf, dim, stride) =>
+            AST::Prefetch(buf.clone(), dim.clone(), stride.clone()),
         AST::Sequence(fs) => {
             // only fill on mainline
             let mut new_fs = Vec::new();
@@ -364,6 +369,16 @@ fn ast_has_holes(ast: &AST) -> bool {
         },
         AST::Assign(_) => false,
         AST::StoreAt(_) => false,
+        AST::Prefetch(_buf, dim, prefetch) => { 
+			match dim {
+				VarOrHole::Var(_) => false,
+				// Holes in prefetch should really be
+				// filled by the iterative synthesizer
+				// rather than the structural synthesizer.
+				// we should really return false here eventually.
+				VarOrHole::Hole() => panic!("Unexpected hole in prefetch")
+			}
+		},
         AST::StructuralHole(_) => true,
         AST::Sequence(asts) => {
             for ast in asts {
