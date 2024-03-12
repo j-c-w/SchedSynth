@@ -31,12 +31,10 @@ int main(int argc, char **argv) {
 	/* producer.compute_at(consumer, yi); */
 	/* // Also vectorize the producer (because sin is vectorizable on x86 using SSE). */
 	/* producer.vectorize(x, 4); */
-consumer.split(y, yo, yi, hole_1);
-consumer.split(x, xo, xi, 4);
-producer.compute_at(consumer, yi);
+consumer.split(y, yo, yi, 19);
+producer.split(x, xo, xi, 4);
 producer.store_at(consumer, yo);
 producer.vectorize(xi);
-consumer.parallel(yo);
 
 	// target
 	consumer.print_loop_nest();

@@ -1,5 +1,5 @@
 def producer:
-  for xo:
+  for ??:
     vectorized xi in [0, 3]:
       compute
 def consumer:

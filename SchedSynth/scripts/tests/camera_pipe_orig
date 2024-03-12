@@ -1,5 +1,5 @@
-produce consumer:
+def consumer:
   for c:
     for y:
       for x:
-        consumer(...) = ...
+        compute
