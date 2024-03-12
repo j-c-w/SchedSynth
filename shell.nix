@@ -2,7 +2,7 @@
 
 with pkgs;
 mkShell rec {
-	buildInputs = [ gcc rustc cargo zlib.dev zlib ];
+	buildInputs = [ gcc rustc cargo zlib.dev zlib cbc ];
 	SHELL_NAME = "SchedSynth";
 
 	shellHook = ''
