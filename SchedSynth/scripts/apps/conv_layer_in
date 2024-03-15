@@ -1,0 +1,34 @@
+def input_im_global_wrapper:
+  for _3:
+    for _2:
+      for _1:
+        for _0:
+          input_im_global_wrapper(...) = ...
+def filter_im_global_wrapper:
+  for _3:
+    for _2:
+      for _1:
+        for _0:
+          filter_im_global_wrapper(...) = ...
+def conv:
+  for n:
+    for y:
+      for x:
+        for c:
+          conv(...) = ...
+def conv.update:
+  for n:
+    for y:
+      for x:
+        for c:
+          for r13_1 in [0, 2]:
+            for r13_2 in [0, 2]:
+              for r13_3 in [0, 127]:
+                conv(...) = ...
+def relu:
+  for n in [0, 4]:
+    for y in [0, 79]:
+      for x in [0, 99]:
+        for c in [0, 127]:
+          consume conv:
+            relu(...) = ...

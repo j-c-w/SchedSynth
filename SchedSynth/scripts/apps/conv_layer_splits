@@ -1,0 +1,9 @@
+c->co,ci,12
+x->xo,xi,4
+filter._0->filter._0._0,filter._0.v22,16
+c_conv->c_conv.c_conv,c_conv.v11,16
+c_conv_up->c_conv_up.c_conv,c_conv_up.v11,16
+r13_3->r13.r13.2,r13.r247,2
+c_relu->c_relu.v3,c_relu.v4,64
+c_relu.v4->c_relu.v4.v4,c_relu.v4.v10,16
+x_relu->x_relu.v5,x_relu.v6
