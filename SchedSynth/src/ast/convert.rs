@@ -71,7 +71,7 @@ impl fmt::Display for AST {
             },
             AST::Assign(ref var) => write!(f, "assign {}", var),
             AST::StoreAt(ref var) => write!(f, "store {} here", var),
-            AST::Prefetch(ref buf, ref var, ref stride) => write!(f, "prefetch {} along dimension {} (stride {}) here", var),
+            AST::Prefetch(ref buf, ref var, ref stride) => write!(f, "prefetch {} along dimension {} (stride {}) here", buf, var, stride),
             AST::StructuralHole(ref ast) => write!(f, "structural hole ({})", ast),
             AST::Sequence(ref ast) => {
                 let mut s = String::new();
@@ -151,7 +151,7 @@ pub fn ast_from_sketch_ast(input: SketchAST) -> AST {
             AST::StoreAt(variable_to_func(var))
         },
         SketchAST::Prefetch(_nesting, buf, var, stride) => {
-            AST::Prefetch(variable_to_buf(buf), variable_to_func(var), hole_from_ast_hole(stride))
+            AST::Prefetch(variable_to_buf(buf), variable_to_var(var), hole_from_ast_hole(stride))
         },
         SketchAST::StructuralHole(_nesting, nest) => {
             AST::StructuralHole(Box::new(ast_from_sketch_ast(*nest)))

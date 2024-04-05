@@ -1,5 +1,6 @@
 use crate::ast::ast::Func;
 use crate::ast::ast::Var;
+use crate::ast::ast::Buf;
 use crate::reshape::reshape::Reshape;
 use crate::gen::halide::HalideProgram;
 use crate::gen::exo::ExoProgram;
@@ -9,6 +10,8 @@ use std::collections::HashSet;
 use crate::shared::range_set::IntegerRangeSet;
 use crate::shared::range_set::TotalOrderRange;
 use crate::options::options::Options;
+use crate::ast::ast::NumberOrHole;
+use crate::ast::ast::VarOrHole;
 
 #[derive(PartialEq,Clone,Copy)]
 pub enum Backend {
@@ -87,6 +90,13 @@ impl TargetLower for BackendInstance {
         match self {
             BackendInstance::Halide(hp) => hp.to_reshape(commands),
             BackendInstance::Exo(ep) => ep.to_reshape(commands)
+        }
+    }
+
+    fn to_prefetch(&mut self, commands: Vec<(Buf, VarOrHole, NumberOrHole)>) {
+        match self {
+            BackendInstance::Halide(hp) => hp.to_prefetch(commands),
+            BackendInstance::Exo(ep) => ep.to_prefetch(commands)
         }
     }
 }
@@ -228,4 +238,5 @@ pub trait TargetLower {
     fn to_compute_at(&mut self, commands: Vec<(Func, Option<Func>, Option<Var>)>);
     fn to_reorder(&mut self, commands: Vec<(Func, Var, Var)>);
     fn to_reshape(&mut self, commands: &Vec<Reshape>);
+    fn to_prefetch(&mut self, commands: Vec<(Buf, VarOrHole, NumberOrHole)>);
 }

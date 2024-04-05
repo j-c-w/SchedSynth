@@ -40,7 +40,8 @@ pub enum SketchAST { // nodes have nesting, <other stuff>
 pub enum ASTLoopProperty {
     Vectorize(),
     Parallel(),
-    Unroll(ASTNumberOrHole)
+    Unroll(ASTNumberOrHole),
+    Fuse(Variable)
 }
 
 #[derive(Clone)]
@@ -70,7 +71,8 @@ impl ToString for ASTLoopProperty {
         match self {
             ASTLoopProperty::Vectorize() => "vectorize".to_string(),
             ASTLoopProperty::Parallel() => "parallel".to_string(),
-            ASTLoopProperty::Unroll(n) => format!("unroll({})", n)
+            ASTLoopProperty::Unroll(n) => format!("unroll({})", n),
+            ASTLoopProperty::Fuse(v) => format!("fuse({})", v),
         }
     }
 }
@@ -241,14 +243,14 @@ fn process_stride(opts: &Options, sequence: Pair<Rule>) -> ASTNumberOrHole {
 
 				let _ = stride.next(); // whitespace
 				let _ = stride.next(); // whitespace
-				let stride_value = process_number(opts, range.next().unwrap());
+				let stride_value = process_number(opts, stride.next().unwrap());
 			} else {
 				// don't have a stride
 				// default stride to 1
 				ASTNumberOrHole::Number(1)
 			}
 		},
-		_ => panic!("Unexpected non-stride!");
+		_ => { panic!("Unexpected non-stride!"); }
 	}
 }
 
@@ -290,6 +292,10 @@ fn process_range(opts: &Options, sequence: Pair<Rule>) -> ForRangeAST {
         },
         _ => panic!("Must pass optinal_range to process_range")
     }
+}
+
+fn process_fuses(opts: &Options, sequence: Pair<Rule>) -> SketchAST {
+    println!("Rule is {}", sequence.as_str())
 }
 
 fn process(opts: &Options, nesting_depth: i32, sequence: Pair<Rule>) -> SketchAST {
@@ -437,6 +443,7 @@ fn process(opts: &Options, nesting_depth: i32, sequence: Pair<Rule>) -> SketchAS
             // let _ = inner.next(); // whitespace
             let ident = process_ident(opts, inner.next().unwrap());
             let range = process_range(opts, inner.next().unwrap());
+            let fuses = process_fuses(opts, inner.next().unwrap());
 
             SketchAST::For(nesting_depth, ident,
                 Box::new(SketchAST::Sequence(nesting_depth, Vec::new())),
@@ -452,6 +459,7 @@ fn process(opts: &Options, nesting_depth: i32, sequence: Pair<Rule>) -> SketchAS
             // let _ = inner.next(); // whitespace
             let ident = process_ident(opts, inner.next().unwrap());
             let range = process_range(opts, inner.next().unwrap());
+            let fuses = process_fuses(opts, inner.next().unwrap());
 
             SketchAST::For(nesting_depth, ident,
                 Box::new(SketchAST::Sequence(nesting_depth, Vec::new())),
@@ -467,8 +475,10 @@ fn process(opts: &Options, nesting_depth: i32, sequence: Pair<Rule>) -> SketchAS
             // let _ = inner.next(); // whitespace
             let ident = process_ident(opts, inner.next().unwrap());
             let range = process_range(opts, inner.next().unwrap());
+            let fuses = process_fuses(opts, inner.next().unwrap());
             let _ = inner.next(); // whitespace token
             let amount = process_number(opts, inner.next().unwrap());
+            let fuses = process_fuses(opts, inner.next().unwrap());
 
             SketchAST::For(nesting_depth, ident,
                 Box::new(SketchAST::Sequence(nesting_depth, Vec::new())),

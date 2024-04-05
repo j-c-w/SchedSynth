@@ -7,10 +7,11 @@ number_or_hole = { "??" | "<" ~ number_set_hole ~ ">" | number }
 number_set_hole = { ident }
 range = { whitespace_plus ~ "in" ~ whitespace_star ~ "[" ~ number_or_hole ~ whitespace_star ~ "," ~ whitespace_star ~ number_or_hole ~ whitespace_star ~ "]" }
 stride = { "(" ~ whitespace_star ~ "stide:" ~ whitespace_star ~ number_or_hole ~ whitespace_star ~ ")" }
-stride = { whitespace_plus ~ "in" ~ whitespace_star}
+fuse = { whitespace_plus ~ "(" ~ whitespace_star ~ "fuse" ~ whitespace_plus ~ ident_list ~ whitespace_plus ~ ")" }
 
 ident = { (alpha | digit) + }
 ident_or_hole = { ident | "??" }
+ident_list = { ident | ident ~ whitespace_star ~ "," ~ whitespace_star ~ ident_list }
 newline = { whitespace* ~ "\n"}
 
 indent = { "  " }
@@ -18,16 +19,17 @@ indent = { "  " }
 indent_nest = { indent* }
 
 optional_range = { (range)? }
-optional_stide = { (stride)? }
+optional_stride = { (stride)? }
+optional_fuse = { (fuse)? }
 
 produce = { "def" ~ whitespace_plus ~ ident_or_hole ~ colon }
 consume = { "compute" ~ whitespace_plus ~ ident_or_hole}
-pfor = {"for" ~ whitespace_plus ~ ident_or_hole ~ optional_range ~ colon }
-vectorize = { "vectorized" ~ whitespace_plus ~ ident_or_hole ~ optional_range ~ colon }
-parallel = { "parallel" ~ whitespace_plus ~ ident_or_hole ~ optional_range ~ colon }
+pfor = {"for" ~ whitespace_plus ~ ident_or_hole ~ optional_range ~ optional_fuse ~ colon }
+vectorize = { "vectorized" ~ whitespace_plus ~ ident_or_hole ~ optional_range ~ optional_fuse ~ colon }
+parallel = { "parallel" ~ whitespace_plus ~ ident_or_hole ~ optional_range ~ optional_fuse ~ colon }
 assignment = { "compute" | "??" }
 store_at = { "alloc" ~ whitespace_plus ~ ident_or_hole }
-unroll = { "unrolled" ~ whitespace_plus ~ ident_or_hole ~ optional_range ~ whitespace_plus ~ number_or_hole ~ whitespace_star ~ colon}
+unroll = { "unrolled" ~ whitespace_plus ~ ident_or_hole ~ optional_range ~ whitespace_plus ~ number_or_hole ~ whitespace_star ~ optional_fuse ~ colon}
 prefetch = { "prefetch" ~ whitespace_plus ~ ident ~ whitespace_plus ~ "at" ~ whitespace_plus ~ ident_or_hole ~ optional_stride }
 structure_hole = { "??" ~ whitespace_star ~ colon }
 

@@ -401,6 +401,20 @@ fn number_or_hole_to_hole_option(n: NumberOrHole) -> HoleOption<i32> {
     }
 }
 
+fn var_or_hole_to_hole_option(n: VarOrHole) -> HoleOption<HVar> {
+    match n {
+        VarOrHole::Var(v) => HoleOption::Value(HVar {name: v.name}),
+        VarOrHole::Hole() => panic!("Variable holes are currently unsupported") // TODO
+    }
+}
+
+fn buf_or_hole_to_hole_option(n: BufOrHole) -> HoleOption<HBuf> {
+    match n {
+        BufOrHole::Buf(b) => HoleOption::Value(HBuf {name: b.name}),
+        BufOrHole::Hole() => panic!("Buffer holes are currently unsupported") // TODO
+    }
+}
+
 impl TargetLower for HalideProgram {
     // Conert the the pairs of func and variable into
     // vectorize halide commands.
@@ -452,11 +466,11 @@ impl TargetLower for HalideProgram {
         self.commands.append(&mut halide_commands)
     }
 
-    fn to_prefetch(&mut self, commands: Vec<(Buf, Var, NumberOrHole)>) {
+    fn to_prefetch(&mut self, commands: Vec<(Buf, VarOrHole, NumberOrHole)>) {
         let mut halide_commands = Vec::new();
         for (buf, var, stride) in commands {
-            let hbuf = HBuf { name: buf.name };
-            let hvar = HVar { name: var.name };
+            let hbuf = buf_or_hole_to_hole_option(BufOrHole::Buf(buf));
+            let hvar = var_or_hole_to_hole_option(var);
             let hstride = number_or_hole_to_hole_option(stride);
 
             halide_commands.push(HalideCommand::Prefetch(hbuf, hvar, hstride));
