@@ -139,7 +139,10 @@ if __name__ == '__main__':
     // 'runnable.cpp'
     let new_runnable_name = opts.execution_dir.clone() + "/runnable.cpp";
     let mut new_runnable = File::create(&new_runnable_name).unwrap();
-    let mut orig_runnable = File::open(&opts.halide_program).unwrap();
+    let mut orig_runnable = match File::open(&opts.halide_program) {
+        Ok(f) => f,
+        Err(e) => panic!("Make sure that a halide template is in {} (or set with --halide-program", opts.halide_program),
+    };
 
     // Replace the SCHED_CONTENT -- if 
     let mut content = String::new();

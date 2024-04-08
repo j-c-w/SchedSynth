@@ -4,8 +4,9 @@ def producer:
       compute
 def consumer:
   for x:
-    store producer
+    alloc producer
     for y:
       compute producer
       for z:
+        prefetch buf at x
         compute

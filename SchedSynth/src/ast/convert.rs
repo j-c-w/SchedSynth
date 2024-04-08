@@ -41,7 +41,8 @@ impl fmt::Display for Property {
         match *self {
             Property::Vectorize() => write!(f, "vectorize"),
             Property::Parallel() => write!(f, "parallel"),
-            Property::Unroll(ref n) => write!(f, "unroll({})", n)
+            Property::Unroll(ref n) => write!(f, "unroll({})", n),
+            Property::Fuse(ref n) => write!(f, "fuse({})", n)
         }
     }
 }
@@ -52,6 +53,7 @@ impl PartialEq for Property {
             (&Property::Vectorize(), &Property::Vectorize()) => true,
             (&Property::Parallel(), &Property::Parallel()) => true,
             (&Property::Unroll(ref n1), &Property::Unroll(ref n2)) => n1 == n2,
+            (&Property::Fuse(ref n1), &Property::Fuse(ref n2)) => n1 == n2,
             _ => false
         }
     }
@@ -170,7 +172,8 @@ pub fn property_from_loop_property(input: ASTLoopProperty) -> Property {
     match input {
         ASTLoopProperty::Vectorize() => Property::Vectorize(),
         ASTLoopProperty::Parallel() => Property::Parallel(),
-        ASTLoopProperty::Unroll(i) => Property::Unroll(hole_from_ast_hole(i))
+        ASTLoopProperty::Unroll(i) => Property::Unroll(hole_from_ast_hole(i)),
+        ASTLoopProperty::Fuse(i) => Property::Fuse(variable_to_var(i))
     }
 }
 

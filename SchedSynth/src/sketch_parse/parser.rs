@@ -18,6 +18,7 @@ pub struct Variable {
     pub hole: bool
 }
 
+
 #[derive(Clone)]
 pub enum ForRangeAST {
     Between(ASTNumberOrHole, ASTNumberOrHole), // start, end
@@ -65,6 +66,11 @@ impl std::fmt::Display for ASTNumberOrHole {
         }
     }
 }
+impl std::fmt::Display for Variable {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(f, "{}", self.name)
+    }
+}
 
 impl ToString for ASTLoopProperty {
  fn to_string(&self) -> String {
@@ -74,12 +80,6 @@ impl ToString for ASTLoopProperty {
             ASTLoopProperty::Unroll(n) => format!("unroll({})", n),
             ASTLoopProperty::Fuse(v) => format!("fuse({})", v),
         }
-    }
-}
-
-impl ToString for Variable {
-    fn to_string(&self) -> String {
-        self.name.clone()
     }
 }
 
@@ -168,7 +168,7 @@ impl AST for SketchAST {
             SketchAST::StructuralHole(_, child) => child.size() + 1,
             SketchAST::Sequence(_, children) => children.iter().map(|child| child.size()).sum(),
             SketchAST::StoreAt(_, _) => 1,
-            SketchAST::Prefetch(_, _) => 1,
+            SketchAST::Prefetch(_, _, _, _) => 1,
         }
     }
 }
@@ -235,7 +235,7 @@ fn process_number(opts: &Options, num: Pair<Rule>) -> ASTNumberOrHole {
 
 fn process_stride(opts: &Options, sequence: Pair<Rule>) -> ASTNumberOrHole {
 	match sequence.as_rule() {
-		Rule::optional_stide => {
+		Rule::optional_stride => {
 			let mut inner = sequence.into_inner();
 			
 			if inner.len() > 0 {
@@ -244,6 +244,8 @@ fn process_stride(opts: &Options, sequence: Pair<Rule>) -> ASTNumberOrHole {
 				let _ = stride.next(); // whitespace
 				let _ = stride.next(); // whitespace
 				let stride_value = process_number(opts, stride.next().unwrap());
+
+                stride_value
 			} else {
 				// don't have a stride
 				// default stride to 1
@@ -295,7 +297,8 @@ fn process_range(opts: &Options, sequence: Pair<Rule>) -> ForRangeAST {
 }
 
 fn process_fuses(opts: &Options, sequence: Pair<Rule>) -> SketchAST {
-    println!("Rule is {}", sequence.as_str())
+    println!("Rule is {}", sequence.as_str());
+    panic!("TO Implement")
 }
 
 fn process(opts: &Options, nesting_depth: i32, sequence: Pair<Rule>) -> SketchAST {
@@ -498,7 +501,7 @@ fn process(opts: &Options, nesting_depth: i32, sequence: Pair<Rule>) -> SketchAS
 			let dimension_id = process_ident(opts, inner.next().unwrap());
 			let stride = process_stride(opts, inner.next().unwrap());
 
-			SketchAST::Prefetch(nesting_depth, buffer_id, dimension_id, stride);
+			SketchAST::Prefetch(nesting_depth, buffer_id, dimension_id, stride)
 		}
         Rule::EOI => {
             if opts.debug_parser {
@@ -554,7 +557,7 @@ fn set_nest(v: &SketchAST, nest: SketchAST) -> SketchAST {
                 SketchAST::StructuralHole(n.clone(), Box::new(nest))
             },
             SketchAST::StoreAt(_n, _var) => panic!("Can't set nest to a store"),
-            SketchAST::Prefetch(_n, _var) => panic!("Can't set nest to a prefetch"),
+            SketchAST::Prefetch(_n, _var, _, _) => panic!("Can't set nest to a prefetch"),
             SketchAST::Assign(_n, _var) => panic!("Can't set nest to an assign"),
             SketchAST::Sequence(_n, _nest) => panic!("Can't set nest to a sequence"),
         }

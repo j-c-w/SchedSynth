@@ -581,16 +581,19 @@ impl ToString for HalideCommand {
             },
             HalideCommand::ComputeRoot(func) => {
                 format!("{}.compute_root();", func.to_string())
-            }
+            },
             // add cases for 
             HalideCommand::Reorder(func1, (var1, var2)) => {
                 format!("{}.reorder({}, {});", func1.to_string(), var1.to_string(), var2.to_string())
-            }
+            },
             HalideCommand::Split(func, var1, (var2, var3), factor) => {
                 format!("{}.split({}, {}, {}, {});", func.to_string(), var1.to_string(), var2.to_string(), var3.to_string(), factor.to_string())
-            }
+            },
             HalideCommand::Fuse(func, (var1, var2), var3) => {
                 format!("{}.fuse({}, {}, {});", func.to_string(), var1.to_string(), var2.to_string(), var3.to_string())
+            },
+            HalideCommand::Prefetch(hbuf, hvar, hstride) => {
+                format!("{}.prefetch({}, {})", hbuf.to_string(), hvar.to_string(), hstride.to_string())
             }
         }
     }

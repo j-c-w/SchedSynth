@@ -301,7 +301,7 @@ fn enforce_nested(opts: &Options, ast: &AST, outer: Var, inner: Var, func_lookup
         },
         AST::Assign(_func) => vec![],
         AST::StoreAt(_func) => vec![],
-		AST::Prefetch(_func) => vec![],
+		AST::Prefetch(_func, _, _) => vec![],
         AST::StructuralHole(subast) => {
             enforce_nested(opts, &subast, outer.clone(), inner.clone(), func_lookup, found_outer, found_inner)
         },

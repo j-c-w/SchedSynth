@@ -6,7 +6,7 @@ number = { digit+ }
 number_or_hole = { "??" | "<" ~ number_set_hole ~ ">" | number }
 number_set_hole = { ident }
 range = { whitespace_plus ~ "in" ~ whitespace_star ~ "[" ~ number_or_hole ~ whitespace_star ~ "," ~ whitespace_star ~ number_or_hole ~ whitespace_star ~ "]" }
-stride = { "(" ~ whitespace_star ~ "stide:" ~ whitespace_star ~ number_or_hole ~ whitespace_star ~ ")" }
+stride = { "(" ~ whitespace_star ~ "stride:" ~ whitespace_star ~ number_or_hole ~ whitespace_star ~ ")" }
 fuse = { whitespace_plus ~ "(" ~ whitespace_star ~ "fuse" ~ whitespace_plus ~ ident_list ~ whitespace_plus ~ ")" }
 
 ident = { (alpha | digit) + }
@@ -19,7 +19,7 @@ indent = { "  " }
 indent_nest = { indent* }
 
 optional_range = { (range)? }
-optional_stride = { (stride)? }
+optional_stride = { (whitespace_plus ~ stride)? }
 optional_fuse = { (fuse)? }
 
 produce = { "def" ~ whitespace_plus ~ ident_or_hole ~ colon }
@@ -52,4 +52,5 @@ sequence =
   | indent_nest ~ assignment
   | indent_nest ~ vectorize
   | indent_nest ~ unroll
+  | indent_nest ~ prefetch
   | indent_nest ~ parallel }

@@ -82,7 +82,8 @@ pub enum AST {
 pub enum Property {
     Vectorize(),
     Parallel(),
-    Unroll(NumberOrHole)
+    Unroll(NumberOrHole),
+    Fuse(VarOrHole)
 }
 
 pub trait ASTUtils {
