@@ -173,6 +173,36 @@ impl AST for SketchAST {
     }
 }
 
+fn process_ident_list(opts: &Options, sequence: Pair<Rule>) -> Vec<Variable> {
+    if opts.debug_parser {
+        println!("Parsing ident list|");
+    }
+    match sequence.as_rule() {
+        Rule::ident_list => {
+            let mut inner = sequence.into_inner();
+
+            if inner.len() == 1 {
+                // just an ident
+                process_ident_list(opts, inner.next().unwrap())
+            } else {
+                // an ident list
+                let mut list_head = process_ident_list(opts, inner.next().unwrap());
+                let _ = inner.next(); // whitespace
+                let _ = inner.next(); // whitespace
+                let tail_list = process_ident_list(opts, inner.next().unwrap());
+
+                // prepend list_head to the tail_list vec
+                list_head.extend(tail_list);
+                list_head
+            }
+        },
+        Rule::ident => {
+            vec![process_ident(opts, sequence)]
+        }
+        _ => panic!("Not an ident list")
+    }
+}
+
 fn process_ident(opts: &Options, sequence: Pair<Rule>) -> Variable {
     match sequence.as_rule() {
         Rule::ident => {
@@ -296,9 +326,36 @@ fn process_range(opts: &Options, sequence: Pair<Rule>) -> ForRangeAST {
     }
 }
 
-fn process_fuses(opts: &Options, sequence: Pair<Rule>) -> SketchAST {
-    println!("Rule is {}", sequence.as_str());
-    panic!("TO Implement")
+fn process_fuses(opts: &Options, sequence: Pair<Rule>) -> Vec<ASTLoopProperty> {
+    if opts.debug_parser {
+        println!("Processing a fuse property, {}", sequence.as_str());
+    }
+
+    match sequence.as_rule() {
+        Rule::optional_fuse => {
+            let mut inner = sequence.into_inner();
+
+            if inner.len() == 0 {
+                // nothing
+                vec![]
+            } else {
+                // have an existing fuse inner.
+                let mut fuse_inner = inner.next().unwrap().into_inner();
+                let _ = fuse_inner.next(); // whitespace
+                let _ = fuse_inner.next(); // whitespace
+                let _ = fuse_inner.next(); // whitespace
+                let ident_list = fuse_inner.next().unwrap();
+
+                let idents = process_ident_list(opts, ident_list);
+                // map idents into ASTLoopProperty::Fuse(
+                let idents = idents.into_iter().map(|ident| {
+                    ASTLoopProperty::Fuse(ident)
+                }).collect();
+                idents
+            }
+        },
+        _ => panic!("Unexpected non-fuse rule to process_fuses: {:?}", sequence.as_rule()),
+    }
 }
 
 fn process(opts: &Options, nesting_depth: i32, sequence: Pair<Rule>) -> SketchAST {
@@ -383,7 +440,7 @@ fn process(opts: &Options, nesting_depth: i32, sequence: Pair<Rule>) -> SketchAS
         },
         Rule::pfor => {
             if opts.debug_parser {
-                println!("Got a for");
+                println!("Got a for ({})", sequence.as_str());
             }
             let mut inner = sequence.into_inner();
 
@@ -391,11 +448,12 @@ fn process(opts: &Options, nesting_depth: i32, sequence: Pair<Rule>) -> SketchAS
                                        // let _ = inner.next(); // whitespace
             let ident = process_ident(opts, inner.next().unwrap());
             let range = process_range(opts, inner.next().unwrap());
+            let fuses = process_fuses(opts, inner.next().unwrap());
 
             // Parser produces un-nested code --- nest it later.
             SketchAST::For(nesting_depth, ident,
                 Box::new(SketchAST::Sequence(nesting_depth, Vec::new())),
-                range, Vec::new())
+                range, fuses)
         },
         Rule::structure_hole => {
             if opts.debug_parser {
@@ -446,7 +504,8 @@ fn process(opts: &Options, nesting_depth: i32, sequence: Pair<Rule>) -> SketchAS
             // let _ = inner.next(); // whitespace
             let ident = process_ident(opts, inner.next().unwrap());
             let range = process_range(opts, inner.next().unwrap());
-            let fuses = process_fuses(opts, inner.next().unwrap());
+            let mut fuses = process_fuses(opts, inner.next().unwrap());
+            fuses.extend(vec![ASTLoopProperty::Vectorize()]);
 
             SketchAST::For(nesting_depth, ident,
                 Box::new(SketchAST::Sequence(nesting_depth, Vec::new())),
@@ -462,11 +521,12 @@ fn process(opts: &Options, nesting_depth: i32, sequence: Pair<Rule>) -> SketchAS
             // let _ = inner.next(); // whitespace
             let ident = process_ident(opts, inner.next().unwrap());
             let range = process_range(opts, inner.next().unwrap());
-            let fuses = process_fuses(opts, inner.next().unwrap());
+            let mut fuses = process_fuses(opts, inner.next().unwrap());
+            fuses.extend(vec![ASTLoopProperty::Parallel()]);
 
             SketchAST::For(nesting_depth, ident,
                 Box::new(SketchAST::Sequence(nesting_depth, Vec::new())),
-                range, vec![ASTLoopProperty::Parallel()])
+                range, fuses)
         }
         Rule::unroll => {
             if opts.debug_parser {
@@ -478,14 +538,14 @@ fn process(opts: &Options, nesting_depth: i32, sequence: Pair<Rule>) -> SketchAS
             // let _ = inner.next(); // whitespace
             let ident = process_ident(opts, inner.next().unwrap());
             let range = process_range(opts, inner.next().unwrap());
-            let fuses = process_fuses(opts, inner.next().unwrap());
             let _ = inner.next(); // whitespace token
             let amount = process_number(opts, inner.next().unwrap());
-            let fuses = process_fuses(opts, inner.next().unwrap());
+            let mut fuses = process_fuses(opts, inner.next().unwrap());
+            fuses.extend(vec![ASTLoopProperty::Unroll(amount)]);
 
             SketchAST::For(nesting_depth, ident,
                 Box::new(SketchAST::Sequence(nesting_depth, Vec::new())),
-                range, vec![ASTLoopProperty::Unroll(amount)])
+                range, fuses)
         }
 		Rule::prefetch => {
 			if opts.debug_parser {

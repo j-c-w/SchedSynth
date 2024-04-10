@@ -581,6 +581,10 @@ pub fn get_vectorized(opts: &Options, ast: &AST) -> Vec<(Func, Var, Property)> {
     get_loops_with_property(opts, ast, &None, &vec![Property::Vectorize()])
 }
 
+pub fn get_fuses(opts: &Options, ast: &AST) -> Vec<(Func, Var, Property)> {
+    get_loops_with_property(opts, ast, &None, &vec![Property::Fuse(VarOrHole::Var(Var{name: "Placeholder".into() } ))])
+}
+
 // Given a property, do a fuzzy match:
 // meaning parameter-independent, and return
 // the property matched if it exists in
@@ -591,8 +595,10 @@ fn fuzzy_property_match(properties: &Vec<Property>, to_match: &Property) -> Vec<
         match (prop, to_match) {
             (Property::Vectorize(), Property::Vectorize()) => result.push(Property::Vectorize()),
             (Property::Parallel(), Property::Parallel()) => result.push(Property::Parallel()),
-            (Property::Unroll(orig), Property::Unroll(match_runroll)) =>
+            (Property::Unroll(orig), Property::Unroll(_match_runroll)) =>
                 result.push(Property::Unroll(orig.clone())),
+            (Property::Fuse(orig), Property::Fuse(_match_fuse)) =>
+                result.push(Property::Fuse(orig.clone())),
             (_, _) => {},
         };
     };
@@ -603,7 +609,7 @@ fn fuzzy_property_match(properties: &Vec<Property>, to_match: &Property) -> Vec<
 // child, panic --- shouldn't happen?
 fn remove_subfuncs(ast: &AST) -> AST {
     match ast {
-        AST::Produce(func, ast) => {
+        AST::Produce(_func, _ast) => {
             panic!("Can't remove a non-sequence func");
         },
         AST::Consume(func) => {
@@ -625,13 +631,13 @@ fn remove_subfuncs(ast: &AST) -> AST {
             AST::StructuralHole(Box::new(remove_subfuncs(ast)))
         },
         AST::Sequence(asts) => {
-            let mut newSeq = Vec::new();
+            let mut new_seq = Vec::new();
             for ast in asts {
                 if !ast.is_func() {
-                    newSeq.push(remove_subfuncs(ast))
+                    new_seq.push(remove_subfuncs(ast))
                 }
             }
-            AST::Sequence(newSeq)
+            AST::Sequence(new_seq)
         }
     }
 }
@@ -703,10 +709,10 @@ pub fn get_all_funcnames(ast: &AST) -> Vec<Func> {
 
 pub fn get_prefetches(opts: &Options, ast: &AST) -> Vec<(Buf, VarOrHole, NumberOrHole)> {
     match ast {
-        AST::Produce(func, ast) => {
+        AST::Produce(_func, ast) => {
             get_prefetches(opts, ast)
         },
-        AST::Consume(func) => {
+        AST::Consume(_func) => {
             vec![]
         },
         AST::For(_var, ast, _range, _props) => {
@@ -732,4 +738,31 @@ pub fn get_prefetches(opts: &Options, ast: &AST) -> Vec<(Buf, VarOrHole, NumberO
             res
         }
     }
+}
+
+// Given a set of variables that were derived from
+// a single variable, return that variable.
+// These secondary varaibles can be the results
+// of any number of splits or fuses, provided the set
+// is covering.
+// so if we do:
+// a -> b, c
+// b -> d, e
+// c, d -> f
+// f -> g, h
+// g -> i, j
+//
+// <i, j> will return g
+// <i, j, h> will return f
+// but <i, h> will fail (not covering for any variable)
+// and <b, e, h, i, j> will return a
+pub fn get_source_variable(opts: &Options, vars: Vec<Var>) -> Var {
+    // The algorithm here is to have a working set,
+    // and to apply all the split/fuse rules
+    // backwards.  After we get to a single variable,
+    // we stop.
+    //
+    // We need to return the compute_with variable to /actually/
+    // use --- which allows for positioning within
+    // the original array.
 }

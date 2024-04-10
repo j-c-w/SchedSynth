@@ -4,6 +4,6 @@ def producer:
       compute
 def consumer:
   for z:
-    for y:
+    for y (fuse a):
       for x:
         compute
