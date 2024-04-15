@@ -53,6 +53,7 @@ impl TargetLower for ExoProgram {
     fn to_store_at(&mut self, _commands: Vec<(Func, Func, Var)>) { }
     fn to_unroll(&mut self, _commands: Vec<(Func, Var, Property)>) { }
     fn to_compute_at(&mut self, _commands: Vec<(Func, Option<Func>, Option<Var>)>) { }
+    fn to_compute_with(&mut self, _commands: Vec<(Func, Var, Var)>) { }
     fn to_reorder(&mut self, _commands: Vec<(Func, Var, Var)>) { }
     fn to_reshape(&mut self, _commands: &Vec<Reshape>) { }
     fn to_prefetch(&mut self, _commands: Vec<(Buf, VarOrHole, NumberOrHole)>) { }

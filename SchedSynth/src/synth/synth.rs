@@ -21,6 +21,7 @@ fn synthesize_candidates(opts: &Options, backend_type: Backend, source: &AST, ta
     backend.to_reshape(infered_reshapes);
     backend.to_reshape(infered_reorders);
     backend.to_compute_at(crate::ast::ast::get_compute_at(opts, &filled_target));
+    backend.to_compute_with(crate::ast::ast::infer_compute_with(opts, &filled_target, &infered_reshapes));
     backend.to_store_at(crate::ast::ast::get_store_at(opts, &filled_target));
     backend.to_vectorize(crate::ast::ast::get_vectorized(opts, &filled_target));
     backend.to_parallel(crate::ast::ast::get_parallel(opts, &filled_target));

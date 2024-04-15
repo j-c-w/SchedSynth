@@ -59,6 +59,7 @@ pub enum HalideCommand {
     Unroll(HoleOption<HFunc>, HoleOption<HVar>, HoleOption<i32>), // HFunc to unroll, unroll factor.
     Tile(), // HFunc to tile, 
     ComputeAt(HoleOption<HFunc>, HoleOption<HFunc>, HoleOption<HVar>), // Compute func at func at varaiable
+    ComputeWith(HoleOption<HFunc>, HoleOption<HVar>, HoleOption<HVar>),
     StoreAt(HoleOption<HFunc>, HoleOption<HFunc>, HoleOption<HVar>), // store func at variable
     Prefetch(HoleOption<HBuf>, HoleOption<HVar>, HoleOption<i32>), // store func at variable
     ComputeRoot(HoleOption<HFunc>), // Compute func at func at varaiable
@@ -111,6 +112,17 @@ impl TargetHoles for HalideProgram {
                     }
                     if is_hole(hv) {
                         holes.push(Box::new(hv.clone()))
+                    }
+                },
+                HalideCommand::ComputeWith(ref hf, ref hv1, ref hv2) => {
+                    if is_hole(hf) {
+                        holes.push(Box::new(hf.clone()))
+                    }
+                    if is_hole(hv1) {
+                        holes.push(Box::new(hv1.clone()))
+                    }
+                    if is_hole(hv2) {
+                        holes.push(Box::new(hv2.clone()))
                     }
                 },
                 HalideCommand::StoreAt(ref hf1, ref hf2, ref hv) => {
@@ -257,6 +269,17 @@ impl TargetHoles for HalideProgram {
                         assert!(false) // unsupported hole type
                     }
                     if is_hole(hv) {
+                        assert!(false) // unsupported hole type
+                    }
+                },
+                HalideCommand::ComputeWith(ref mut hf1, ref mut hv1, ref mut hv2) => {
+                    if is_hole(hf1) {
+                        assert!(false) // unsupported hole type
+                    }
+                    if is_hole(hv1) {
+                        assert!(false) // unsupported hole type
+                    }
+                    if is_hole(hv2) {
                         assert!(false) // unsupported hole type
                     }
                 },
@@ -503,6 +526,19 @@ impl TargetLower for HalideProgram {
         self.commands.append(&mut halide_commands)
     }
 
+    fn to_compute_with(&mut self, commands: Vec<(Func, Var, Var)>) {
+        let mut halide_commands = Vec::new();
+        for (func, compute_with_var, targ_var) in commands {
+            let hfunc = HFunc {name: func.name, update: func.update };
+            let compute_with_hvar = HVar { name: compute_with_var.name };
+            let targ_hvar = HVar {name: targ_var.name };
+
+            halide_commands.push(HalideCommand::ComputeWith(v(hfunc), v(compute_with_hvar), v(targ_hvar)))
+        }
+
+        self.commands.append(&mut halide_commands)
+    }
+
     // turn the var var var into this:
     // Reorder(HFunc, HVar, HVar) // Compute func at func at varaiable
     fn to_reorder(&mut self, commands: Vec<(Func, Var, Var)>) {
@@ -575,6 +611,9 @@ impl ToString for HalideCommand {
             HalideCommand::Tile() => String::from("X.tile()"),
             HalideCommand::ComputeAt(func1, func2, var) => {
                 format!("{}.compute_at({}, {});", func1.to_string(), func2.to_string(), var.to_string())
+            }
+            HalideCommand::ComputeWith(func, var1, var2) => {
+                format!("{}.compute_with({}, {})", func.to_string(), var1.to_string(), var2.to_string())
             }
             HalideCommand::StoreAt(func, func2, var) => {
                 format!("{}.store_at({}, {});", func.to_string(), func2.to_string(), var.to_string())

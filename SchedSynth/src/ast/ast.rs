@@ -1,10 +1,14 @@
 use crate::options::options::Options;
 use crate::ast::reorder_infer::get_reorders_internal;
 use crate::ast::reorder_infer::insert_reorders_internal;
-use crate::reshape::reshape::Reshape;
 use std::collections::HashSet;
 use std::collections::HashMap;
 use crate::shared::range_set::IntegerRangeSet;
+use crate::reshape::reshape::Reshape;
+use crate::reshape::reshape::ReshapeFunctions;
+use crate::reshape::reshape::get_reshape_lhs;
+use crate::reshape::reshape::get_reshape_rhs;
+use crate::reshape::reshape::reverse_reshapes;
 
 #[derive(Clone,Hash,Eq,PartialEq,Debug)]
 pub struct Var {
@@ -742,7 +746,7 @@ pub fn get_prefetches(opts: &Options, ast: &AST) -> Vec<(Buf, VarOrHole, NumberO
 
 // Given a set of variables that were derived from
 // a single variable, return that variable.
-// These secondary varaibles can be the results
+// These secondary variables can be the results
 // of any number of splits or fuses, provided the set
 // is covering.
 // so if we do:
@@ -756,7 +760,7 @@ pub fn get_prefetches(opts: &Options, ast: &AST) -> Vec<(Buf, VarOrHole, NumberO
 // <i, j, h> will return f
 // but <i, h> will fail (not covering for any variable)
 // and <b, e, h, i, j> will return a
-pub fn get_source_variable(opts: &Options, vars: Vec<Var>) -> Var {
+pub fn get_source_variable(opts: &Options, reshapes: &Vec<Reshape>, vars: Vec<Var>) -> Var {
     // The algorithm here is to have a working set,
     // and to apply all the split/fuse rules
     // backwards.  After we get to a single variable,
@@ -765,4 +769,108 @@ pub fn get_source_variable(opts: &Options, vars: Vec<Var>) -> Var {
     // We need to return the compute_with variable to /actually/
     // use --- which allows for positioning within
     // the original array.
+    
+
+    // We take a greedy approach here: going through the reshapes, every time
+    // we find a reshape that applies, apply it.
+    let mut vars_set: HashSet<Var> = HashSet::from_iter(vars.into_iter());
+    let reversed_reshapes = reverse_reshapes(reshapes);
+    let mut changed = true;
+
+    while vars_set.len() > 1 {
+        if ! changed {
+            // If we have > 1 set size and also no changes,
+            // then there must be two unrelated variables that
+            // the programmer is trying to fuse a single
+            // variable with -- -that doesn't work, so abort here.
+            panic!("Fuse isn't applied to a single variable.");
+        }
+        changed = false;
+
+        // We have more than one variable --- go through and apply
+        // every reshape that we have.
+        // Note that due to the variable uniqueness requirement,
+        // we can just greedily apply all the variables.
+        
+        for reshape in &reversed_reshapes {
+            // Because this function is concerned with sets rather
+            // than structure, we just look for the variables on the LHS
+            // of the patten.
+
+            let lhs_variables = get_reshape_lhs(reshape.clone());
+            // check if everythibng from the lhs of the pattern is in the
+            // variabels set.
+            if lhs_variables.iter().all(|var| vars_set.contains(&var)) {
+                // don'þ apply reorders --- this is allowed to be
+                // reorder agnostic.
+                if ! reshape.is_reorder() {
+                    let rhs_variables = get_reshape_rhs(reshape.clone());
+
+                    // Change the set with the RHS variables
+                    for var in lhs_variables {
+                        vars_set.remove(&var);
+                    }
+                    for var in rhs_variables {
+                        vars_set.insert(var);
+                    }
+
+                    changed = true;
+                }
+            }
+        }
+    }
+
+    // Should only be one element left:
+    if vars_set.len() == 0 {
+        panic!("Getting source variable of empty set");
+    } else {
+        // size must be 1
+        vars_set.iter().next().unwrap().clone()
+    }
+}
+
+// Note that this returns different that get_fuses, which just
+// returns the raw fuses --- this processes them into
+// compute_with statements.
+pub fn infer_compute_with(opts: &Options, target_ast: &AST, reshapes: &Vec<Reshape>) -> Vec<(Func, Var, Var)> {
+    // First, get all the fuse statements:
+    let fuse_statements = get_fuses(opts, target_ast); // vec(func, var in loop, property (that has fuse variable))
+
+    // Now, collate these into the variables that each fuse
+    // is being done with.
+    let mut by_fuse_variable: HashMap<Var, Vec<(Func, Var)>> = HashMap::new();
+
+    for statement in fuse_statements {
+        // statement is a tuple (func, var in loop, property)
+        let (func, var, property) = statement;
+        let fuse_variable = match property {
+            Property::Fuse(VarOrHole::Var(var)) => var,
+            Property::Fuse(_) => panic!("Infering compute with doesn't work with holes in the compute with statements"), // TODO --- should we support this somehow?
+            _ => panic!("Non fuse statement")
+        };
+        let new_list = if by_fuse_variable.contains_key(&fuse_variable) {
+            let mut existing_list = by_fuse_variable.get(&fuse_variable).unwrap().clone();
+            existing_list.push((func, var));
+            existing_list
+        } else {
+            vec![(func, var)]
+        };
+        by_fuse_variable.insert(fuse_variable.clone(), new_list);
+    }
+
+    // Finally, run the collator on each of these groups to determine
+    // the source variable.
+    let mut fuse_commands:Vec<(Func, Var, Var)> = Vec::new();
+    for fuse_with_fuse_sets in by_fuse_variable.iter() {
+        let (fuse_with, fuse_sets) = fuse_with_fuse_sets;
+        // Need to get just the vars out of fuse sets ---
+        let fuse_vars = fuse_sets.iter().map(|(_func, var)| var.clone()).clone().collect();
+        let (fuse_func, _) = fuse_sets[0].clone(); // TODO --- do this in a better way...
+
+        let fuse_source_var = get_source_variable(opts, reshapes, fuse_vars);
+
+        fuse_commands.push((fuse_func, fuse_with.clone(), fuse_source_var));
+    }
+
+    fuse_commands
 }

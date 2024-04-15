@@ -1,6 +1,7 @@
-consumer.reorder(y, x);
-consumer.reorder(z, x);
 consumer.reorder(z, y);
+consumer.reorder(z, x);
+consumer.reorder(y, x);
 producer.compute_at(consumer, y);
+consumer.compute_with(b, x)
 producer.store_at(consumer, x);
 buf.prefetch(x, 1)

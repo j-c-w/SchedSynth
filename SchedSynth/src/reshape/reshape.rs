@@ -19,6 +19,18 @@ pub enum Reshape {
     Fuse(Func, (Var, Var), Var)
 }
 
+pub trait ReshapeFunctions {
+    fn is_split(&self) -> bool;
+    fn is_reorder(&self) -> bool;
+    fn is_fuse(&self) -> bool;
+}
+
+impl ReshapeFunctions for Reshape {
+    fn is_split(&self) -> bool { match self { Reshape::Split(_, _, _, _) => true, _ => false } }
+    fn is_reorder(&self) -> bool { match self { Reshape::Reorder(_, _) => true, _ => false } }
+    fn is_fuse(&self) -> bool { match self { Reshape::Fuse(_, _, _) => true, _ => false } }
+}
+
 #[derive(Clone)]
 pub enum OrderingConstraint {
     Nested(Var, Var), // Require that var, var are nested within each other
@@ -56,6 +68,27 @@ impl fmt::Debug for Reshape {
             }
         }
     }
+}
+
+// take a reshape and generate the reverse -- needed for
+// the explicit cross-function fuses.
+// Note that information is not completely
+// preserved --- loose the split factors.
+pub fn reverse_reshape(reshape: &Reshape) -> Reshape {
+    match reshape {
+        Reshape::Split(func, fromv, (tov1, tov2), _factor) =>
+            Reshape::Fuse(func.clone(), (tov1.clone(), tov2.clone()), fromv.clone()),
+        Reshape::Reorder(func, (v1, v2)) =>
+            Reshape::Reorder(func.clone(), (v2.clone(), v1.clone())),
+        Reshape::Fuse(func, (fromv1, fromv2), tov) =>
+            // don't know the number, so make ti a number of -1 to make that very
+            // clear an explicit.
+            Reshape::Split(func.clone(), tov.clone(), (fromv1.clone(), fromv2.clone()), NumberOrHole::Number(-1)),
+    }
+}
+
+pub fn reverse_reshapes(reshapes: &Vec<Reshape>) -> Vec<Reshape> {
+    reshapes.iter().map(|r| reverse_reshape(r)).collect()
 }
 
 // if can apply, return the ast that this has been applied to.
@@ -378,4 +411,20 @@ pub fn infer_reorders_between(opts: &Options, orig_ast: &AST, targ_ast: &AST, tr
     let reorders = crate::ast::ast::find_reorders(opts, &transformed_orig, targ_ast);
 
     reorders.iter().map(|(f, v, v2)| Reshape::Reorder(f.clone(), (v.clone(), v2.clone()))).collect()
+}
+
+pub fn get_reshape_lhs(reshape: Reshape) -> Vec<Var> {
+    match reshape {
+        Reshape::Split(_, l, _, _) => vec![l],
+        Reshape::Reorder(_, (v1, v2)) => vec![v1, v2],
+        Reshape::Fuse(_, (v1, v2), _) => vec![v1, v2],
+    }
+}
+
+pub fn get_reshape_rhs(reshape: Reshape) -> Vec<Var> {
+    match reshape {
+        Reshape::Split(_, _, (v1, v2), _) => vec![v1, v2],
+        Reshape::Reorder(_, (v1, v2)) => vec![v1, v2],
+        Reshape::Fuse(_, _, v) => vec![v],
+    }
 }

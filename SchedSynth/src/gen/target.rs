@@ -79,6 +79,13 @@ impl TargetLower for BackendInstance {
         }
     }
 
+    fn to_compute_with(&mut self, commands: Vec<(Func, Var, Var)>) {
+        match self {
+            BackendInstance::Halide(hp) => hp.to_compute_with(commands),
+            BackendInstance::Exo(ep) => ep.to_compute_with(commands)
+        }
+    }
+
     fn to_reorder(&mut self, commands: Vec<(Func, Var, Var)>) {
         match self {
             BackendInstance::Halide(hp) => hp.to_reorder(commands),
@@ -236,6 +243,7 @@ pub trait TargetLower {
     fn to_parallel(&mut self, commands: Vec<(Func, Var, Property)>);
     fn to_store_at(&mut self, commands: Vec<(Func, Func, Var)>);
     fn to_compute_at(&mut self, commands: Vec<(Func, Option<Func>, Option<Var>)>);
+    fn to_compute_with(&mut self, commands: Vec<(Func, Var, Var)>);
     fn to_reorder(&mut self, commands: Vec<(Func, Var, Var)>);
     fn to_reshape(&mut self, commands: &Vec<Reshape>);
     fn to_prefetch(&mut self, commands: Vec<(Buf, VarOrHole, NumberOrHole)>);
