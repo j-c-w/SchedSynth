@@ -1,25 +1,33 @@
-produce ratio:
-  for x.x:
-	vectorized x.v5 in [0, 7]:
-	  ratio(...) = ...
-produce blur_y:
-  for x.x:
-    vectorized x.v4 in [0, 7]:
-	  blur_y(...) = ...
-produce gray:
-  for x.x:
-	vectorized x.v3 in [0, 7]:
-	  gray(...) = ...
-produce output:
-  parallel y.v0:
-    store gray:
-      store blur_y:
-        store ratio:
-          for y.v1. in [-6, 31]:
-            consume gray:
-              consume blur_y:
-				consume ratio:
-                  for c:
-                    for x.x:
-                      vectorized x.v2 in [0, 7]:
-                        output(...) = ...
+rx->rx1,rx2,8
+bx->bx1,bx2,8
+gx->gx1,gx2,8
+oy->oy.1,oy.2,32
+ox->ox.1,ox.2,8
+def ratio:
+  for ry:
+    for rx1:
+	  vectorized rx2:
+	    compute
+def blur_y:
+  for by:
+    for bx1:
+      vectorized bx2:
+	    compute
+def gray:
+  for gy:
+    for gx1:
+	  vectorized gx2:
+	    compute
+def output:
+  parallel oy.0:
+    alloc gray:
+    alloc blur_y:
+    alloc ratio:
+    for oy.1:
+      compute gray
+      compute blur_y
+	  compute ratio
+      for oc:
+        for ox.1:
+          vectorized ox.2:
+            compute

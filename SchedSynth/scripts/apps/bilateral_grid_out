@@ -1,35 +1,50 @@
-produce blurz:
-  for y:
-    consume histogram:
-      for x.x:
-        vectorized x.v2 in [0, 7]:
-          for z:
-            unrolled c:
-              blurz(...) = ...
-produce histogram:
-  for c:
-    for z:
-      for y:
-        for x:
-          histogram(...) = ...
-  for y:
-    for x:
-      for r10 in [0, 7]:
-        for r10 in [0, 7]:
-          unrolled c:
-            histogram(...) = ...
-produce blurx:
-  parallel y:
-    consume blurz:
-      for z:
-        for x.x:
-          vectorized x.v5 in [0, 7]:
-            unrolled c:
-              blurx(...) = ...
-produce bilateral_grid:
-  parallel y.y:
-    consume blury:
-      for y.v7 in [0, 7]:
-        for x.x:
-          vectorized x.v8 in [0, 7]:
-            bilateral_grid(...) = ...
+bz_x->bz_x.1,bz_x.2,8
+bx_x->bx_x.1,bx_x.2,8
+by_x->by_x.1,by_x.2,8
+bg_y->bg_y.1,bg_y.2,8
+bg_x->bg_x.1,bg_x.2,8
+
+def blurz:
+  for bz_y:
+    compute histogram
+    for bz_x.1:
+      vectorized bz_x.2:
+        for bz_z:
+          unrolled bz_c, 8:
+            compute
+def histogram:
+  for h_c:
+    for h_z:
+      for h_y:
+        for h_x:
+          compute
+def histogram.update(2):
+  for h1_y:
+    for h1_x:
+      for h1_r10.1:
+        for h1_r10.2:
+          unrolled h1_c, 8:
+            compute
+def blurx:
+  parallel bx_y:
+    compute blurz
+    for bx_z:
+      for bx_x.1:
+        vectorized bx_x.2:
+          unrolled bx_c, 8:
+            compute
+def blury:
+  parallel by_y:
+    compute blurz
+    for by_z:
+      for by_x.1:
+        vectorized by_x.2:
+          unrolled by_c, 8:
+            compute
+def bilateral_grid:
+  parallel bg_y.1:
+    compute blury
+    for bg_y.2:
+      for bg_x.1:
+        vectorized bg_x.2:
+          compute
