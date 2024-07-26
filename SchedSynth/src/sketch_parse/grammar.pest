@@ -12,6 +12,7 @@ fuse = { whitespace_plus ~ "(" ~ whitespace_star ~ "fuse" ~ whitespace_plus ~ id
 ident = { (alpha | digit) + }
 ident_or_hole = { ident | "??" }
 ident_list = { ident | ident ~ whitespace_star ~ "," ~ whitespace_star ~ ident_list }
+ident_list_spaces = { ident | ident ~ whitespace_plus ~ ident_list_spaces }
 newline = { whitespace* ~ "\n"}
 
 indent = { "  " }
@@ -32,6 +33,8 @@ store_at = { "alloc" ~ whitespace_plus ~ ident_or_hole }
 unroll = { "unrolled" ~ whitespace_plus ~ ident_or_hole ~ optional_range ~ whitespace_plus ~ number_or_hole ~ whitespace_star ~ optional_fuse ~ colon}
 prefetch = { "prefetch" ~ whitespace_plus ~ ident ~ whitespace_plus ~ "at" ~ whitespace_plus ~ ident_or_hole ~ optional_stride }
 structure_hole = { "??" ~ whitespace_star ~ colon }
+ordering = { "storage order" ~ whitespace_plus ~ ident_list_spaces }
+memoize = { "memoize" ~ whitespace_plus ~ ident_list_spaces }
 
 whitespace = { " " | "\t" }
 whitespace_plus = { whitespace+ }
@@ -50,6 +53,8 @@ sequence =
   | indent_nest ~ pfor
   | indent_nest ~ store_at
   | indent_nest ~ assignment
+  | indent_nest ~ ordering
+  | indent_nest ~ memoize
   | indent_nest ~ vectorize
   | indent_nest ~ unroll
   | indent_nest ~ prefetch

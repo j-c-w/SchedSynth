@@ -27,14 +27,15 @@ pub enum ForRangeAST {
 
 #[derive(Clone)]
 pub enum SketchAST { // nodes have nesting, <other stuff>
-    Produce(i32, Variable, Box<SketchAST>), // name, contents
+    Produce(i32, Variable, Box<SketchAST>, Vec<ASTFuncProperty>), // name, contents, properties
     Consume(i32, Variable), // name
     For(i32, Variable, Box<SketchAST>, ForRangeAST, Vec<ASTLoopProperty>), // variable name, sub-contents, optional range
     Assign(i32, Variable), // variable name
     StoreAt(i32, Variable), // variable name
     Sequence(i32, Vec<SketchAST>), // list of sub-asts
 	Prefetch(i32, Variable, Variable, ASTNumberOrHole),
-    StructuralHole(i32, Box<SketchAST>) // optional sub-asts.
+    StructuralHole(i32, Box<SketchAST>), // optional sub-asts.
+    Property(i32, ASTFuncProperty),
 }
 
 #[derive(Clone)]
@@ -43,6 +44,12 @@ pub enum ASTLoopProperty {
     Parallel(),
     Unroll(ASTNumberOrHole),
     Fuse(Variable)
+}
+
+#[derive(Clone)]
+pub enum ASTFuncProperty {
+    StoreOrder(Vec<Variable>), // Store order
+    Memoize(), // memoize
 }
 
 #[derive(Clone)]
@@ -72,6 +79,15 @@ impl std::fmt::Display for Variable {
     }
 }
 
+impl std::fmt::Display for ASTFuncProperty {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match self {
+            ASTFuncProperty::StoreOrder(order) => write!(f, "Store order: {:}", order.iter().map(|v| v.to_string()).collect::<Vec<String>>().join(", ")),
+            ASTFuncProperty::Memoize() => write!(f, "Memoize")
+        }
+    }
+}
+
 impl ToString for ASTLoopProperty {
  fn to_string(&self) -> String {
         match self {
@@ -95,8 +111,8 @@ impl ToString for ForRangeAST {
 impl ToString for SketchAST {
     fn to_string(&self) -> String {
         match self {
-            SketchAST::Produce(_, n, subelts) => format!("Produce {} ({})", n.to_string().clone(),
-            subelts.to_string()),
+            SketchAST::Produce(_, n, subelts, properties) => format!("Produce {} ({}): {}", n.to_string().clone(),
+            subelts.to_string(), properties.iter().map(|v| v.to_string()).collect::<Vec<String>>().join(", ").clone()),
             SketchAST::Consume(_, n) => format!("Consume {}", n.to_string().clone()),
             SketchAST::For(_, n, subelts, range, properties) => {
                 let properties_string = 
@@ -111,6 +127,7 @@ impl ToString for SketchAST {
             SketchAST::Sequence(_, subvars) => format!("Sequence({})", subvars.iter().map(|x|
                     x.to_string()).collect::<Vec<String>>().join(",")),
             SketchAST::StructuralHole(_, subvar) => format!("StructuralHole({})", subvar.to_string()),
+            SketchAST::Property(_, property) => format!("Func Property:({})", property.to_string()),
         }
     }
 }
@@ -118,7 +135,7 @@ impl ToString for SketchAST {
 impl AST for SketchAST {
     fn children(&self) -> Vec<SketchAST> {
         match self {
-            SketchAST::Produce(_nest, _n, children) => {
+            SketchAST::Produce(_nest, _n, children, _properties) => {
                 let mut res = Vec::new();
                 res.push(children.as_ref().clone());
                 res
@@ -148,7 +165,7 @@ impl AST for SketchAST {
 
     fn node_type(&self) -> String {
         match self {
-            SketchAST::Produce(_, _, _) => "Produce".into(),
+            SketchAST::Produce(_, _, _, _) => "Produce".into(),
             SketchAST::Consume(_, _) => "Consume".into(),
             SketchAST::For(_, _, _, _, _) => "For".into(),
             SketchAST::Assign(_, _) => "Assign".into(),
@@ -161,7 +178,7 @@ impl AST for SketchAST {
 
     fn size(&self) -> i32 {
         match self {
-            SketchAST::Produce(_, _, child) => child.size() + 1,
+            SketchAST::Produce(_, _, child, _) => child.size() + 1,
             SketchAST::Consume(_, _) => 1,
             SketchAST::For(_, _, child, _, _) => child.size() + 1,
             SketchAST::Assign(_, _) => 1,
@@ -196,6 +213,21 @@ fn process_ident_list(opts: &Options, sequence: Pair<Rule>) -> Vec<Variable> {
                 list_head
             }
         },
+        Rule::ident_list_spaces => {
+            let mut inner = sequence.into_inner();
+
+            if inner.len() == 1 {
+                // just an ident
+                process_ident_list(opts, inner.next().unwrap())
+            } else {
+                let mut list_head = process_ident_list(opts, inner.next().unwrap());
+                let _ = inner.next(); // whitespace
+                let tail_list = process_ident_list(opts, inner.next().unwrap());
+
+                list_head.extend(tail_list);
+                list_head
+            }
+        }
         Rule::ident => {
             vec![process_ident(opts, sequence)]
         }
@@ -423,7 +455,8 @@ fn process(opts: &Options, nesting_depth: i32, sequence: Pair<Rule>) -> SketchAS
 
             // Parser produces un-nested code --- nest it later.
             SketchAST::Produce(nesting_depth, ident,
-                Box::new(SketchAST::Sequence(nesting_depth, Vec::new())))
+                Box::new(SketchAST::Sequence(nesting_depth, Vec::new())),
+                Vec::new())
         },
 		Rule::consume => {
 			if opts.debug_parser {
@@ -562,7 +595,27 @@ fn process(opts: &Options, nesting_depth: i32, sequence: Pair<Rule>) -> SketchAS
 			let stride = process_stride(opts, inner.next().unwrap());
 
 			SketchAST::Prefetch(nesting_depth, buffer_id, dimension_id, stride)
-		}
+		},
+        Rule::ordering => {
+            if opts.debug_parser {
+                println!("Got ordering");
+            }
+
+            let mut inner = sequence.into_inner();
+            let _ = inner.next(); // whitespace
+            let orders = process_ident_list(opts, inner.next().unwrap());
+
+            SketchAST::Property(nesting_depth, ASTFuncProperty::StoreOrder(orders))
+        },
+        Rule::memoize => {
+            if opts.debug_parser {
+                println!("Got memoize");
+            }
+
+            let mut inner = sequence.into_inner();
+
+            SketchAST::Property(nesting_depth, ASTFuncProperty::Memoize())
+        },
         Rule::EOI => {
             if opts.debug_parser {
                 println!("Got an EOI");
@@ -584,10 +637,11 @@ fn process(opts: &Options, nesting_depth: i32, sequence: Pair<Rule>) -> SketchAS
 // Get the nesting depth
 fn get_nest_depth(v: &SketchAST) -> &i32 {
     match v {
-        SketchAST::Produce(n, _, _) => n,
+        SketchAST::Produce(n, _, _, _) => n,
         SketchAST::Consume(n, _) => n,
         SketchAST::For(n, _, _, _, _) => n,
         SketchAST::Assign(n, _) => n,
+        SketchAST::Property(n, _) => n,
         SketchAST::Sequence(n, _) => n,
         SketchAST::StructuralHole(n, _) => n,
         SketchAST::StoreAt(n, _) => n,
@@ -601,9 +655,9 @@ fn set_nest(v: &SketchAST, nest: SketchAST) -> SketchAST {
         v.clone()
     } else {
         match v {
-            SketchAST::Produce(n, var, current_nest) => {
+            SketchAST::Produce(n, var, current_nest, properties) => {
                 assert!(current_nest.size() == 0); // check we aren't deleting anything
-                SketchAST::Produce(n.clone(), var.clone(), Box::new(nest))
+                SketchAST::Produce(n.clone(), var.clone(), Box::new(nest), properties.clone())
             },
             SketchAST::Consume(n, var) => {
                 SketchAST::Consume(n.clone(), var.clone())
@@ -618,7 +672,7 @@ fn set_nest(v: &SketchAST, nest: SketchAST) -> SketchAST {
             },
             SketchAST::StoreAt(_n, _var) => panic!("Can't set nest to a store"),
             SketchAST::Prefetch(_n, _var, _, _) => panic!("Can't set nest to a prefetch"),
-            SketchAST::Assign(_n, _var) => panic!("Can't set nest to an assign"),
+            SketchAST::Property(_n, _property) => panic!("Can't set nest to a store order"),
             SketchAST::Sequence(_n, _nest) => panic!("Can't set nest to a sequence"),
         }
     }
@@ -669,6 +723,29 @@ fn nest(parsed: SketchAST) -> SketchAST {
     }
 }
 
+TODO
+#[derive(Clone)]
+pub enum SketchAST { // nodes have nesting, <other stuff>
+    Produce(i32, Variable, Box<SketchAST>, Vec<ASTFuncProperty>), // name, contents, properties
+    Consume(i32, Variable), // name
+    For(i32, Variable, Box<SketchAST>, ForRangeAST, Vec<ASTLoopProperty>), // variable name, sub-contents, optional range
+    Assign(i32, Variable), // variable name
+    StoreAt(i32, Variable), // variable name
+    Sequence(i32, Vec<SketchAST>), // list of sub-asts
+	Prefetch(i32, Variable, Variable, ASTNumberOrHole),
+    StructuralHole(i32, Box<SketchAST>), // optional sub-asts.
+    Property(i32, ASTFuncProperty),
+}
+fn lift_func_properties(nested: SketchAST) -> SketchAST {
+    match parsed {
+        SketchAST::Sequence(n, rules) => {
+            Sequence(n, lift_func_properties.iter().map(lift_func_properties).collect())
+        },
+        SketchAST::Produce(
+            TODO
+    }
+}
+
 pub fn parse(opts: &Options, filename: &String) -> SketchAST {
     let input = fs::read_to_string(filename).expect("Unable to read file");
     let mut sequence = LoopParser::parse(Rule::sequence_list, &input[..]).unwrap();
@@ -683,5 +760,14 @@ pub fn parse(opts: &Options, filename: &String) -> SketchAST {
     if opts.debug_parser {
         println!("Nested {}", nested.to_string());
     }
-    nested
+
+    // Remove the property annotations from within the funcs and put them
+    // on the parent func for each command.
+    let func_properties_lifted = lift_func_properties(nested);
+
+    if opts.debug_parser {
+        println!("Func Properties Lifted {}", func_properties_lifted.to_string());
+    }
+    func_properties_lifted
+
 }
