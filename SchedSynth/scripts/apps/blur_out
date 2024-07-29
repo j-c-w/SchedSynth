@@ -1,17 +1,13 @@
-produce blur_x:
-  for y:
-    for x.x:
-      vectorized x.v1 in [0, 15]:
-        blur_x(...) = ...
-produce blur_y:
-  parallel y.y:
-    store blur_x:
-      for y.yi. in [-2, 31]:
-        for x.x:
-          produce blur_x:
-            for x.x:
-              vectorized x.v1 in [0, 15]:
-                blur_x(...) = ...
-          consume blur_x:
-            vectorized x.v0 in [0, 15]:
-              blur_y(...) = ...
+def blur_x:
+  for xy:
+    for xx.1:
+      vectorized xx.2 in [0, 15]:
+        compute
+def blur_y:
+  parallel yy.1:
+    alloc blur_x
+    for yy.2:
+      for yx.1:
+        compute blur_x
+        vectorized yx.2 in [0, 15]:
+          compute

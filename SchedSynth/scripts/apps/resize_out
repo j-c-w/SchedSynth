@@ -1,6 +1,3 @@
-ox->ox1,ox2,16
-oy->oy1,oy2,64
-
 def unnormalized_kernel_x:                      
   for k:
     vectorized x:
