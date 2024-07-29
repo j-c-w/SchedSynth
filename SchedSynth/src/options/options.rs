@@ -38,6 +38,7 @@ pub struct Options {
 
     // opentuner options
     pub opentuner_timeout: i32,
+    pub no_opentuner: bool,
 }
 
 pub fn parse_options() -> Options {
@@ -148,6 +149,11 @@ pub fn parse_options() -> Options {
             .takes_value(true)
             .default_value("30")
         )
+        .arg(
+            Arg::new("no-opentuner")
+            .long("no-opentuner")
+            .help("Skip opentuner")
+        )
         .get_matches();
 
     // initialize to defaults
@@ -179,6 +185,7 @@ pub fn parse_options() -> Options {
         debug_ilp_solver: args.is_present("debug-ilp-solver"),
 
         opentuner_timeout: args.value_of("opentuner-timeout").unwrap().parse().expect("Opentuner timeout must be an integer"),
+        no_opentuner: args.is_present("no-opentuner"),
     };
 
     return opts;

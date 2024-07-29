@@ -32,7 +32,12 @@ fn synthesize_candidates(opts: &Options, backend_type: Backend, source: &AST, ta
         backend
     ];
 
-    let best_candidate = crate::runner::runner::best_schedule(opts, candidates);
+    let best_candidate =
+        if opts.no_opentuner {
+            candidates[0].clone()
+        } else {
+            crate::runner::runner::best_schedule(opts, candidates)
+        };
     best_candidate.generate()
 }
 
