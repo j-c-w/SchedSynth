@@ -576,6 +576,7 @@ fn process(opts: &Options, nesting_depth: i32, sequence: Pair<Rule>) -> SketchAS
             let range = process_range(opts, inner.next().unwrap());
             let _ = inner.next(); // whitespace token
             let amount = process_number(opts, inner.next().unwrap());
+            let _ = inner.next(); // whitespace token
             let mut fuses = process_fuses(opts, inner.next().unwrap());
             fuses.extend(vec![ASTLoopProperty::Unroll(amount)]);
 

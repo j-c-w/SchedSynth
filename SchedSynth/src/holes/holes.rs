@@ -143,7 +143,10 @@ fn hole_structure_builder(ast: &AST, map: &HashMap<Var, i32>) -> Vec<HoleStructu
         AST::For(v, subast, _range, _props) => {
             let mut result = hole_structure_builder(&subast, map);
             match v {
-                VarOrHole::Var(var) => result.insert(0, HoleStructure::Loop(map.get(&var).unwrap().clone())),
+                VarOrHole::Var(var) => {
+                    // println!("Var {}", var.to_string());
+                    result.insert(0, HoleStructure::Loop(map.get(&var).unwrap().clone()))
+                },
                 VarOrHole::Hole() => result.insert(0, HoleStructure::VariableHole()),
             }
             return result;
@@ -327,7 +330,11 @@ fn fill_holes(ast: &AST, var_order: &Vec<Var>) -> AST {
             let number_till_next_var = match next_var {
                 None => var_order.len(),
                 // get index of v in var_order
-                Some(v) => var_order.iter().position(|x| *x == v).unwrap()
+                Some(v) => {
+                    // println!("{}", v.to_string());
+                    // println!("{}", var_order.iter().map(|x| x.to_string()).collect::<Vec<String>>().join(", "));
+                    var_order.iter().position(|x| *x == v).unwrap()
+                }
             };
             // convert i32 to usize
             let number_to_fill = number_till_next_var - (number_of_fixed_holes as usize);

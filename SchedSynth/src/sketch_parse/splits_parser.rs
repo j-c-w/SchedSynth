@@ -87,7 +87,7 @@ fn process_factor(_opts: &Options, rule: Pair<Rule>) -> ASTNumberOrHole {
 				if factor_str == "??" {
                     ASTNumberOrHole::Hole(AnyIntegerSet())
 				} else {
-                    println!("Factorint {}", factor_str);
+                    // println!("Factorint {}", factor_str);
 					let factor_int = factor_str.parse::<i32>().unwrap();
 					ASTNumberOrHole::Number(factor_int)
 				}
