@@ -69,6 +69,8 @@ pub enum HalideCommand {
     // This is the function properties.
     Memoize(HoleOption<HFunc>),
     StoreOrder(HoleOption<HFunc>, Vec<HoleOption<HVar>>),
+    Async(HoleOption<HFunc>),
+    AllowRaceConditions(HoleOption<HFunc>),
 }
 
 impl TargetHoles for HalideProgram {
@@ -198,6 +200,16 @@ impl TargetHoles for HalideProgram {
                     }
                 },
                 HalideCommand::Memoize(ref hf) => {
+                    if is_hole(hf) {
+                        holes.push(Box::new(hf.clone()))
+                    }
+                },
+                HalideCommand::Async(ref hf) => {
+                    if is_hole(hf) {
+                        holes.push(Box::new(hf.clone()))
+                    }
+                },
+                HalideCommand::AllowRaceConditions(ref hf) => {
                     if is_hole(hf) {
                         holes.push(Box::new(hf.clone()))
                     }
@@ -374,6 +386,16 @@ impl TargetHoles for HalideProgram {
                     }
                 },
                 HalideCommand::Memoize(ref hf) => {
+                    if is_hole(hf) {
+                        assert!(false)
+                    }
+                },
+                HalideCommand::AllowRaceConditions(ref hf) => {
+                    if is_hole(hf) {
+                        assert!(false)
+                    }
+                },
+                HalideCommand::Async(ref hf) => {
                     if is_hole(hf) {
                         assert!(false)
                     }
@@ -635,6 +657,12 @@ impl TargetLower for HalideProgram {
                 FuncProperty::Memoize() => {
                     halide_commands.push(HalideCommand::Memoize(v(hfunc.clone())))
                 },
+                FuncProperty::AllowRaceConditions() => {
+                    halide_commands.push(HalideCommand::AllowRaceConditions(v(hfunc.clone())))
+                },
+                FuncProperty::Async() => {
+                    halide_commands.push(HalideCommand::Async(v(hfunc.clone())))
+                },
             }
         }
 
@@ -692,6 +720,12 @@ impl ToString for HalideCommand {
             },
             HalideCommand::Memoize(hbuf) => {
                 format!("{}.memoize()", hbuf.to_string())
+            },
+            HalideCommand::AllowRaceConditions(hbuf) => {
+                format!("{}.allow_race_conditions()", hbuf.to_string())
+            },
+            HalideCommand::Async(hbuf) => {
+                format!("{}.async()", hbuf.to_string())
             },
             HalideCommand::StoreOrder(hbuf, vars) => {
                 format!("{}.storage_order({})", hbuf, vars.iter().map(|x| x.to_string()).collect::<Vec<String>>().join(", "))

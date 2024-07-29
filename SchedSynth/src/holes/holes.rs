@@ -383,7 +383,9 @@ fn func_properties_has_holes(props: FuncProperty) -> bool {
 
             return false;
         }
-        FuncProperty::Memoize() => false
+        FuncProperty::Memoize() => false,
+        FuncProperty::AllowRaceConditions() => false,
+        FuncProperty::Async() => false,
     }
 }
 

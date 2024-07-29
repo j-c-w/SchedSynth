@@ -50,6 +50,8 @@ pub enum ASTLoopProperty {
 pub enum ASTFuncProperty {
     StoreOrder(Vec<Variable>), // Store order
     Memoize(), // memoize
+    AllowRaceConditions(),
+    Async(),
 }
 
 #[derive(Clone)]
@@ -83,7 +85,9 @@ impl std::fmt::Display for ASTFuncProperty {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
             ASTFuncProperty::StoreOrder(order) => write!(f, "Store order: {:}", order.iter().map(|v| v.to_string()).collect::<Vec<String>>().join(", ")),
-            ASTFuncProperty::Memoize() => write!(f, "Memoize")
+            ASTFuncProperty::Memoize() => write!(f, "Memoize"),
+            ASTFuncProperty::AllowRaceConditions() => write!(f, "AllowRaceConditions"),
+            ASTFuncProperty::Async() => write!(f, "Async"),
         }
     }
 }
@@ -615,14 +619,22 @@ fn process(opts: &Options, nesting_depth: i32, sequence: Pair<Rule>) -> SketchAS
 
             SketchAST::Property(nesting_depth, ASTFuncProperty::StoreOrder(orders))
         },
-        Rule::memoize => {
+        Rule::simple_property => {
             if opts.debug_parser {
-                println!("Got memoize");
+                println!("Got a simple property");
             }
 
-            let _inner = sequence.into_inner();
+            let name = sequence.as_str();
+            match name {
+                "memoize" =>
+                    SketchAST::Property(nesting_depth, ASTFuncProperty::Memoize()),
+                "allow race conditions" =>
+                    SketchAST::Property(nesting_depth, ASTFuncProperty::AllowRaceConditions()),
+                "async" =>
+                    SketchAST::Property(nesting_depth, ASTFuncProperty::Async()),
+                _ => panic!("Unknown simple property {}", name)
+            }
 
-            SketchAST::Property(nesting_depth, ASTFuncProperty::Memoize())
         },
         Rule::EOI => {
             if opts.debug_parser {

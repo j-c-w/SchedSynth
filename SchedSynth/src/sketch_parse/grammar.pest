@@ -34,7 +34,7 @@ unroll = { "unrolled" ~ whitespace_plus ~ ident_or_hole ~ optional_range ~ white
 prefetch = { "prefetch" ~ whitespace_plus ~ ident ~ whitespace_plus ~ "at" ~ whitespace_plus ~ ident_or_hole ~ optional_stride }
 structure_hole = { "??" ~ whitespace_star ~ colon }
 ordering = { "storage order" ~ whitespace_plus ~ ident_list_spaces }
-memoize = { "memoize" }
+simple_property = { "memoize" | "allow race conditions" | "async" }
 
 whitespace = { " " | "\t" }
 whitespace_plus = { whitespace+ }
@@ -55,7 +55,7 @@ sequence =
   | indent_nest ~ store_at
   | indent_nest ~ assignment
   | indent_nest ~ ordering
-  | indent_nest ~ memoize
+  | indent_nest ~ simple_property
   | indent_nest ~ vectorize
   | indent_nest ~ unroll
   | indent_nest ~ prefetch

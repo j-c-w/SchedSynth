@@ -58,6 +58,10 @@ impl fmt::Display for FuncProperty {
           },
           FuncProperty::Memoize() =>
               write!(f, "Memoize()"),
+          FuncProperty::AllowRaceConditions() =>
+              write!(f, "AllowRaceConditions()"),
+          FuncProperty::Async() =>
+              write!(f, "Async"),
       }
   }
 }
@@ -201,7 +205,9 @@ pub fn property_from_loop_property(input: ASTLoopProperty) -> Property {
 pub fn func_property_from_property(input: &ASTFuncProperty) -> FuncProperty {
     match input {
         ASTFuncProperty::StoreOrder(vs) => FuncProperty::StoreOrder(vs.clone().iter().map(variable_to_var).collect()),
-        ASTFuncProperty::Memoize() => FuncProperty::Memoize()
+        ASTFuncProperty::Memoize() => FuncProperty::Memoize(),
+        ASTFuncProperty::Async() => FuncProperty::Async(),
+        ASTFuncProperty::AllowRaceConditions() => FuncProperty::AllowRaceConditions(),
     }
 }
 

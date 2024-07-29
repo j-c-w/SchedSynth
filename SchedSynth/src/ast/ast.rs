@@ -93,7 +93,9 @@ pub enum Property {
 #[derive(Clone,PartialEq)]
 pub enum FuncProperty {
     StoreOrder(Vec<VarOrHole>),
-    Memoize()
+    Memoize(),
+    Async(),
+    AllowRaceConditions(),
 }
 
 pub trait ASTUtils {
