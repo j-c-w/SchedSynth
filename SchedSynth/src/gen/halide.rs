@@ -10,7 +10,6 @@ use crate::gen::target::HoleBindingMap;
 use crate::gen::target::hole_value_to_option;
 use crate::ast::ast::*;
 use crate::reshape::reshape::Reshape;
-use crate::ast::ast::Property;
 
 use std::sync::Mutex;
 use std::path::Path;
@@ -66,6 +65,10 @@ pub enum HalideCommand {
     Reorder(HoleOption<HFunc>, (HoleOption<HVar>, HoleOption<HVar>)), // Reoder <to> hvar, hvar
     Split(HoleOption<HFunc>, HoleOption<HVar>, (HoleOption<HVar>, HoleOption<HVar>), HoleOption<i32>), // split var into (var, var) with tiling factor i32
     Fuse(HoleOption<HFunc>, (HoleOption<HVar>, HoleOption<HVar>), HoleOption<HVar>), // fuse (var, var) into (var)
+
+    // This is the function properties.
+    Memoize(HoleOption<HFunc>),
+    StoreOrder(HoleOption<HFunc>, Vec<HoleOption<HVar>>),
 }
 
 impl TargetHoles for HalideProgram {
@@ -192,6 +195,22 @@ impl TargetHoles for HalideProgram {
                     }
                     if is_hole(hv) {
                         holes.push(Box::new(hv.clone()))
+                    }
+                },
+                HalideCommand::Memoize(ref hf) => {
+                    if is_hole(hf) {
+                        holes.push(Box::new(hf.clone()))
+                    }
+                },
+                HalideCommand::StoreOrder(ref hf, ref vs) => {
+                    if is_hole(hf) {
+                        holes.push(Box::new(hf.clone()))
+                    }
+
+                    for var in vs {
+                        if is_hole(var) {
+                            holes.push(Box::new(var.clone()))
+                        }
                     }
                 },
             }
@@ -354,6 +373,22 @@ impl TargetHoles for HalideProgram {
                         assert!(false) // unsupported hole type
                     }
                 },
+                HalideCommand::Memoize(ref hf) => {
+                    if is_hole(hf) {
+                        assert!(false)
+                    }
+                },
+                HalideCommand::StoreOrder(ref hf, ref vars) => {
+                    if is_hole(hf) {
+                        assert!(false)
+                    }
+
+                    for v in vars {
+                        if is_hole(v) {
+                            assert!(false)
+                        }
+                    }
+                }
             }
         }
     }
@@ -584,6 +619,27 @@ impl TargetLower for HalideProgram {
         }
         self.commands.append(&mut halide_commands)
     }
+
+    fn to_func_property(&mut self, commands: Vec<(Func, FuncProperty)>) {
+        let mut halide_commands = Vec::new();
+        for (func, command) in commands {
+            let hfunc = HFunc { name: func.name, update: func.update };
+            match command {
+                FuncProperty::StoreOrder(vs) => {
+                    let mut hvars = Vec::new();
+                    for var in vs {
+                        hvars.push(v(HVar { name: var.unwrap().name.clone() }))
+                    }
+                    halide_commands.push(HalideCommand::StoreOrder(v(hfunc.clone()), hvars))
+                },
+                FuncProperty::Memoize() => {
+                    halide_commands.push(HalideCommand::Memoize(v(hfunc.clone())))
+                },
+            }
+        }
+
+        self.commands.append(&mut halide_commands)
+    }
 }
 
 impl Target for HalideProgram {}
@@ -633,7 +689,13 @@ impl ToString for HalideCommand {
             },
             HalideCommand::Prefetch(hbuf, hvar, hstride) => {
                 format!("{}.prefetch({}, {})", hbuf.to_string(), hvar.to_string(), hstride.to_string())
-            }
+            },
+            HalideCommand::Memoize(hbuf) => {
+                format!("{}.memoize()", hbuf.to_string())
+            },
+            HalideCommand::StoreOrder(hbuf, vars) => {
+                format!("{}.storage_order({})", hbuf, vars.iter().map(|x| x.to_string()).collect::<Vec<String>>().join(", "))
+            },
         }
     }
 }

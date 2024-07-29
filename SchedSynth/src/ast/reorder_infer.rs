@@ -4,7 +4,7 @@ use std::collections::HashSet;
 use crate::ast::ast::AST;
 use crate::ast::ast::Var;
 use crate::ast::ast::Func;
-use crate::ast::ast::HoleOption;
+use crate::ast::ast::HoleOptionTrait;
 use crate::reshape::reshape::Reshape;
 use crate::reshape::reshape::inject_reorders;
 
@@ -208,7 +208,7 @@ fn build_comes_before_map(input: &Vec<Var>) -> HashMap<Var, HashSet<Var>> {
 fn get_orders(opts: &Options, ast: &AST, current_producer: &Option<Func>,
         orders: &mut HashMap<Func, Vec<Var>>) {
     match ast {
-        AST::Produce(var, ast) => {
+        AST::Produce(var, ast, _props) => {
             // into a new producer --- this gets a new var ordering.
             // note that if this is a compute-at producer it probably is
             // going to get the ordering of the original producer.

@@ -160,6 +160,7 @@ impl AST for SketchAST {
             }
             SketchAST::StructuralHole(_nest, child) => vec![child.as_ref().clone()],
             SketchAST::Sequence(_nest, children) => children.to_vec(),
+            SketchAST::Property(_nest, _prop) => vec![]
         }
     }
 
@@ -173,6 +174,7 @@ impl AST for SketchAST {
             SketchAST::Prefetch(_, _, _, _) => "Prefetch".into(),
             SketchAST::StructuralHole(_, _) => "StructuralHole".into(),
             SketchAST::Sequence(_, _) => "Sequence".into(),
+            SketchAST::Property(_, _) => "Property".into(),
         }
     }
 
@@ -186,6 +188,7 @@ impl AST for SketchAST {
             SketchAST::Sequence(_, children) => children.iter().map(|child| child.size()).sum(),
             SketchAST::StoreAt(_, _) => 1,
             SketchAST::Prefetch(_, _, _, _) => 1,
+            SketchAST::Property(_, _) => 1
         }
     }
 }
@@ -612,7 +615,7 @@ fn process(opts: &Options, nesting_depth: i32, sequence: Pair<Rule>) -> SketchAS
                 println!("Got memoize");
             }
 
-            let mut inner = sequence.into_inner();
+            let _inner = sequence.into_inner();
 
             SketchAST::Property(nesting_depth, ASTFuncProperty::Memoize())
         },
@@ -674,6 +677,7 @@ fn set_nest(v: &SketchAST, nest: SketchAST) -> SketchAST {
             SketchAST::Prefetch(_n, _var, _, _) => panic!("Can't set nest to a prefetch"),
             SketchAST::Property(_n, _property) => panic!("Can't set nest to a store order"),
             SketchAST::Sequence(_n, _nest) => panic!("Can't set nest to a sequence"),
+            SketchAST::Assign(_n, _var) => panic!("Can't set nest to an assign"),
         }
     }
 }
@@ -723,26 +727,61 @@ fn nest(parsed: SketchAST) -> SketchAST {
     }
 }
 
-TODO
-#[derive(Clone)]
-pub enum SketchAST { // nodes have nesting, <other stuff>
-    Produce(i32, Variable, Box<SketchAST>, Vec<ASTFuncProperty>), // name, contents, properties
-    Consume(i32, Variable), // name
-    For(i32, Variable, Box<SketchAST>, ForRangeAST, Vec<ASTLoopProperty>), // variable name, sub-contents, optional range
-    Assign(i32, Variable), // variable name
-    StoreAt(i32, Variable), // variable name
-    Sequence(i32, Vec<SketchAST>), // list of sub-asts
-	Prefetch(i32, Variable, Variable, ASTNumberOrHole),
-    StructuralHole(i32, Box<SketchAST>), // optional sub-asts.
-    Property(i32, ASTFuncProperty),
-}
-fn lift_func_properties(nested: SketchAST) -> SketchAST {
-    match parsed {
-        SketchAST::Sequence(n, rules) => {
-            Sequence(n, lift_func_properties.iter().map(lift_func_properties).collect())
+fn find_func_properties_in(ast: &SketchAST) -> (Vec<ASTFuncProperty>, Option<SketchAST>) {
+    match ast {
+        SketchAST::Produce(_, _, _, _) => panic!("Unexpected func when finding properties"),
+        SketchAST::Consume(n, v) => (vec![], Some(SketchAST::Consume(n.clone(), v.clone()))),
+        SketchAST::For(n, v, subast, range, props) => {
+            let (func_props, option_subast) = find_func_properties_in(subast);
+            let new_subast = match option_subast {
+                Some(s) => s,
+                None => panic!("Bad structure: the only child of the for was a function property"),
+            };
+            let res_ast = SketchAST::For(n.clone(), v.clone(), Box::new(new_subast), range.clone(), props.clone());
+            (func_props, Some(res_ast))
         },
-        SketchAST::Produce(
-            TODO
+        SketchAST::Assign(_, _) => (vec![], Some(ast.clone())),
+        SketchAST::StoreAt(_, _) => (vec![], Some(ast.clone())),
+        SketchAST::Sequence(n, ss) => {
+            let mut result = Vec::new();
+            let mut new_ss = Vec::new();
+            for ast in ss {
+                let (intermediate_result, intermediate_ast) = find_func_properties_in(ast);
+                result.extend(intermediate_result);
+                match intermediate_ast {
+                    Some(new_ast) => new_ss.push(new_ast),
+                    None => {}
+                }
+            };
+            (result, Some(SketchAST::Sequence(n.clone(), new_ss)))
+        },
+        SketchAST::Prefetch(_, _, _, _) => (vec![], Some(ast.clone())),
+        SketchAST::StructuralHole(_, _) => (vec![], Some(ast.clone())),
+        SketchAST::Property(_, prop) => (vec![prop.clone()], None),
+    }
+}
+
+// This takes the func properties and puts them in the func definitions.
+// It removes those properties from the AST
+fn lift_func_properties(nested: &SketchAST) -> SketchAST {
+    match nested {
+        SketchAST::Sequence(n, rules) => {
+            SketchAST::Sequence(n.clone(), rules.iter().map(lift_func_properties).collect())
+        },
+        SketchAST::Produce(n, name, body, properties) => {
+            let (mut new_properties, new_body)  = find_func_properties_in(body);
+            let new_body_unwrapped = match new_body {
+                Some(body) => body,
+                None => panic!("Error: only child of a produce was a func property")
+            };
+            // properties will be empty here --- but extend for future
+            // extensibility.
+            new_properties.extend(properties.clone());
+            SketchAST::Produce(n.clone(), name.clone(), Box::new(new_body_unwrapped), new_properties)
+        },
+        // We don't support nested func defs, 
+        // so other recursion cases are not required.
+        _ => panic!("Got a top-level non-func")
     }
 }
 
@@ -763,7 +802,7 @@ pub fn parse(opts: &Options, filename: &String) -> SketchAST {
 
     // Remove the property annotations from within the funcs and put them
     // on the parent func for each command.
-    let func_properties_lifted = lift_func_properties(nested);
+    let func_properties_lifted = lift_func_properties(&nested);
 
     if opts.debug_parser {
         println!("Func Properties Lifted {}", func_properties_lifted.to_string());

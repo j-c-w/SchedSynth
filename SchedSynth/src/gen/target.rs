@@ -12,6 +12,7 @@ use crate::shared::range_set::TotalOrderRange;
 use crate::options::options::Options;
 use crate::ast::ast::NumberOrHole;
 use crate::ast::ast::VarOrHole;
+use crate::ast::ast::FuncProperty;
 
 #[derive(PartialEq,Clone,Copy)]
 pub enum Backend {
@@ -104,6 +105,13 @@ impl TargetLower for BackendInstance {
         match self {
             BackendInstance::Halide(hp) => hp.to_prefetch(commands),
             BackendInstance::Exo(ep) => ep.to_prefetch(commands)
+        }
+    }
+
+    fn to_func_property(&mut self, commands: Vec<(Func, FuncProperty)>) {
+        match self {
+            BackendInstance::Halide(hp) => hp.to_func_property(commands),
+            BackendInstance::Exo(ep) => ep.to_func_property(commands)
         }
     }
 }
@@ -247,4 +255,5 @@ pub trait TargetLower {
     fn to_reorder(&mut self, commands: Vec<(Func, Var, Var)>);
     fn to_reshape(&mut self, commands: &Vec<Reshape>);
     fn to_prefetch(&mut self, commands: Vec<(Buf, VarOrHole, NumberOrHole)>);
+    fn to_func_property(&mut self, commands: Vec<(Func, FuncProperty)>);
 }

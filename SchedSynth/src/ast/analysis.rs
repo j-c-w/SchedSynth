@@ -5,14 +5,14 @@ use crate::ast::ast::Var;
 use crate::ast::ast::Func;
 use crate::ast::ast::ForRange;
 use crate::ast::ast::VarOrHole;
-use crate::ast::ast::HoleOption;
+use crate::ast::ast::HoleOptionTrait;
 
 // recursively walk through the ast --- for every loop node (vect or for)
 // add to the lookup table so we can access the range that that variable
 // takes.
 fn range_table_for_internal(opts: &Options, ast: &AST, table: &mut HashMap<Var, ForRange>) {
     match ast {
-        AST::Produce(_var, ast) => {
+        AST::Produce(_var, ast, _props) => {
             range_table_for_internal(opts, ast, table)
         },
         AST::Consume(_var) => {
@@ -56,7 +56,7 @@ pub fn range_table_for(opts: &Options, ast: &AST) -> HashMap<Var, ForRange> {
 // if current_producer is none then we throw (?what should we do?)
 fn func_table_internal(opts: &Options, ast: &AST, current_producer: &Option<Func>, table: &mut HashMap<Var, Func>) {
     match ast {
-        AST::Produce(var, body) => {
+        AST::Produce(var, body, _props) => {
             func_table_internal(opts, body, &Some(var.clone()), table);
         },
         AST::Consume(_var) => {

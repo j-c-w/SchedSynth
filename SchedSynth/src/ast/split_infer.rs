@@ -383,7 +383,7 @@ fn odds_variable_is_split_from(variable: &Var, from: &Var) -> f32 {
 fn variables(ast: &AST) -> HashSet<Var> {
  let mut vars = HashSet::new();
     match ast {
-        AST::Produce(_var, ast) => {
+        AST::Produce(_var, ast, _props) => {
             // dont include func vars
             vars.extend(variables(&*ast));
         },

@@ -4,11 +4,13 @@ use crate::ast::ast::Var;
 use crate::ast::ast::Func;
 use crate::ast::ast::Buf;
 use crate::ast::ast::Property;
+use crate::ast::ast::FuncProperty;
 use crate::ast::ast::NumberOrHole;
 use crate::ast::ast::VarOrHole;
 use crate::sketch_parse::parser::SketchAST;
 use crate::sketch_parse::parser::ForRangeAST;
 use crate::sketch_parse::parser::ASTLoopProperty;
+use crate::sketch_parse::parser::ASTFuncProperty;
 use crate::sketch_parse::parser::ASTNumberOrHole;
 
 use std::fmt;
@@ -47,6 +49,19 @@ impl fmt::Display for Property {
     }
 }
 
+impl fmt::Display for FuncProperty {
+  fn fmt (&self, f: &mut fmt::Formatter) -> fmt::Result {
+      match self {
+          FuncProperty::StoreOrder(vs) => {
+              let varlist = vs.iter().map(|p| p.to_string()).collect::<Vec<String>>().join(", ");
+              write!(f, "StoreOrder({})", varlist)
+          },
+          FuncProperty::Memoize() =>
+              write!(f, "Memoize()"),
+      }
+  }
+}
+
 impl PartialEq for Property {
     fn eq(&self, other: &Property) -> bool {
         match (self, other) {
@@ -64,7 +79,10 @@ impl PartialEq for Property {
 impl fmt::Display for AST {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match *self {
-            AST::Produce(ref var, ref ast) => write!(f, "produce {} in ({})", var, ast),
+            AST::Produce(ref var, ref ast, ref props) => {
+                let props_string = props.iter().map(|p| p.to_string()).collect::<Vec<String>>().join(", ");
+                write!(f, "produce {} in ({}) with {}", var, ast, props_string)
+            },
             AST::Consume(ref var) => write!(f, "consume {}", var),
             AST::For(ref var, ref ast, ref range, ref properties) => {
                 let property_string = 
@@ -87,11 +105,11 @@ impl fmt::Display for AST {
     }
 }
 
-pub fn variable_to_var(variable: crate::sketch_parse::parser::Variable) -> VarOrHole {
+pub fn variable_to_var(variable: &crate::sketch_parse::parser::Variable) -> VarOrHole {
     if variable.hole {
         VarOrHole::Hole()
     } else {
-        VarOrHole::Var(Var { name: variable.name })
+        VarOrHole::Var(Var { name: variable.name.clone() })
     }
 }
 
@@ -137,14 +155,14 @@ fn ast_from_range(input: ForRangeAST) -> ForRange {
 
 pub fn ast_from_sketch_ast(input: SketchAST) -> AST {
     match input {
-        SketchAST::Produce(_nesting, var, ast) => {
-            AST::Produce(variable_to_func(var), Box::new(ast_from_sketch_ast(*ast)))
+        SketchAST::Produce(_nesting, var, ast, properties) => {
+            AST::Produce(variable_to_func(var), Box::new(ast_from_sketch_ast(*ast)), func_properties_from_properties(properties))
         },
         SketchAST::Consume(_nesting, var) => {
             AST::Consume(variable_to_func(var))
         },
         SketchAST::For(_nesting, var, ast, range, properties) => {
-            AST::For(variable_to_var(var), Box::new(ast_from_sketch_ast(*ast)), ast_from_range(range), properties_from_loop_properties(properties))
+            AST::For(variable_to_var(&var), Box::new(ast_from_sketch_ast(*ast)), ast_from_range(range), properties_from_loop_properties(properties))
         },
         SketchAST::Assign(_nesting, var) => {
             AST::Assign(variable_to_func(var))
@@ -153,7 +171,7 @@ pub fn ast_from_sketch_ast(input: SketchAST) -> AST {
             AST::StoreAt(variable_to_func(var))
         },
         SketchAST::Prefetch(_nesting, buf, var, stride) => {
-            AST::Prefetch(variable_to_buf(buf), variable_to_var(var), hole_from_ast_hole(stride))
+            AST::Prefetch(variable_to_buf(buf), variable_to_var(&var), hole_from_ast_hole(stride))
         },
         SketchAST::StructuralHole(_nesting, nest) => {
             AST::StructuralHole(Box::new(ast_from_sketch_ast(*nest)))
@@ -165,6 +183,9 @@ pub fn ast_from_sketch_ast(input: SketchAST) -> AST {
             }
             AST::Sequence(ast_vec)
         },
+        SketchAST::Property(_nesting, _prop) => {
+            panic!("Expected propertie attributes to be removed.  ")
+        }
     }
 }
 
@@ -173,8 +194,19 @@ pub fn property_from_loop_property(input: ASTLoopProperty) -> Property {
         ASTLoopProperty::Vectorize() => Property::Vectorize(),
         ASTLoopProperty::Parallel() => Property::Parallel(),
         ASTLoopProperty::Unroll(i) => Property::Unroll(hole_from_ast_hole(i)),
-        ASTLoopProperty::Fuse(i) => Property::Fuse(variable_to_var(i))
+        ASTLoopProperty::Fuse(i) => Property::Fuse(variable_to_var(&i))
     }
+}
+
+pub fn func_property_from_property(input: &ASTFuncProperty) -> FuncProperty {
+    match input {
+        ASTFuncProperty::StoreOrder(vs) => FuncProperty::StoreOrder(vs.clone().iter().map(variable_to_var).collect()),
+        ASTFuncProperty::Memoize() => FuncProperty::Memoize()
+    }
+}
+
+pub fn func_properties_from_properties(input: Vec<ASTFuncProperty>) -> Vec<FuncProperty> {
+    input.iter().map(func_property_from_property).collect()
 }
 
 pub fn hole_from_ast_hole(input: ASTNumberOrHole) -> NumberOrHole  {

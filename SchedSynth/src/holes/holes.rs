@@ -4,8 +4,9 @@ use crate::ast::ast::Var;
 use crate::ast::ast::get_all_funcnames;
 use crate::ast::ast::split_ast_into_funcs;
 use crate::ast::ast::ForRange;
-use crate::ast::ast::HoleOption;
+use crate::ast::ast::HoleOptionTrait;
 use crate::ast::ast::VarOrHole;
+use crate::ast::ast::FuncProperty;
 use std::collections::HashMap;
 use crate::options::options::Options;
 use crate::reshape::reshape::Reshape;
@@ -135,7 +136,7 @@ pub fn run_ilp_solver(opts: &Options, original_ast: &AST, holey_ast: &AST) -> Ve
 fn hole_structure_builder(ast: &AST, map: &HashMap<Var, i32>) -> Vec<HoleStructure> {
     // ATM only support linear ASTs.
     match ast {
-        AST::Produce(_f, subast) =>
+        AST::Produce(_f, subast, _prop) =>
             hole_structure_builder(&subast, map),
         AST::Consume(_f) =>
             vec![],
@@ -186,7 +187,7 @@ fn hole_structure_builder(ast: &AST, map: &HashMap<Var, i32>) -> Vec<HoleStructu
 // Build a map from var to name of that var in the ILP formulation (an int)
 fn map_builder(target_ast: &AST, current_map: &mut HashMap<Var, i32>, current_max: &mut i32) {
     match target_ast {
-        AST::Produce(_f, subast) =>
+        AST::Produce(_f, subast, _prop) =>
             map_builder(subast, current_map, current_max),
         AST::Consume(_f) =>
             (),
@@ -231,18 +232,18 @@ pub fn fill_structural_holes(opts: &Options, original_ast: &AST, ast_with_holes:
             println!("Checking func {}", func.to_string());
         }
         // Now,run ilp solver on this if there are any structural holes.
-        let hole_func = hole_funcs.get(&func).unwrap();
+        let (hole_func, hole_props) = hole_funcs.get(&func).unwrap();
         if hole_func.has_structural_holes() {
             if opts.debug_ilp_solver {
                 println!("Func {} has structural holes, running ILP", func.to_string());
             }
-            let orig_func = original_funcs.get(&func).unwrap();
+            let (orig_func, orig_props) = original_funcs.get(&func).unwrap();
 
             let result_variable_order = run_ilp_solver(opts, &orig_func, hole_func);
             let filled_hole_body = fill_holes(hole_func, &result_variable_order);
             // rewrap the func in a product:
             let filled_hole_func =
-                AST::Produce(func.clone(), Box::new(filled_hole_body));
+                AST::Produce(func.clone(), Box::new(filled_hole_body), orig_props.clone());
 
             if opts.debug_ilp_solver {
                 println!("Func with resolved holes are {}", filled_hole_func.to_string());
@@ -256,7 +257,7 @@ pub fn fill_structural_holes(opts: &Options, original_ast: &AST, ast_with_holes:
 
             // push the plain func into it
             let filled_hole_func =
-                AST::Produce(func.clone(), Box::new(hole_func.clone()));
+                AST::Produce(func.clone(), Box::new(hole_func.clone()), hole_props.clone());
             funcs_vec.push(filled_hole_func)
         }
     }
@@ -274,8 +275,8 @@ pub fn fill_structural_holes(opts: &Options, original_ast: &AST, ast_with_holes:
 
 fn fill_holes(ast: &AST, var_order: &Vec<Var>) -> AST {
     match ast {
-        AST::Produce(f, subast) =>
-            AST::Produce(f.clone(), Box::new(fill_holes(subast, var_order))),
+        AST::Produce(f, subast, props) =>
+            AST::Produce(f.clone(), Box::new(fill_holes(subast, var_order)), props.clone()),
         AST::Consume(f) =>
             AST::Consume(f.clone()),
         AST::For(v, subast, range, prop) => {
@@ -357,9 +358,31 @@ pub fn assert_no_structural_holes(ast: &AST) {
     }
 }
 
+fn var_is_hole(v: &VarOrHole) -> bool  {
+    match v {
+        VarOrHole::Var(_) => false,
+        VarOrHole::Hole() => true
+    }
+}
+
+fn func_properties_has_holes(props: FuncProperty) -> bool {
+    match props {
+        FuncProperty::StoreOrder(vs) => {
+            for v in vs {
+                if var_is_hole(&v) {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+        FuncProperty::Memoize() => false
+    }
+}
+
 fn ast_has_holes(ast: &AST) -> bool {
     match ast {
-        AST::Produce(_, ast) => ast_has_holes(ast),
+        AST::Produce(_, ast, _props) => ast_has_holes(ast),
         AST::Consume(_) => false,
         AST::For(var_or_hole, ast, _, _) => {
             match var_or_hole {
@@ -369,7 +392,7 @@ fn ast_has_holes(ast: &AST) -> bool {
         },
         AST::Assign(_) => false,
         AST::StoreAt(_) => false,
-        AST::Prefetch(_buf, dim, prefetch) => { 
+        AST::Prefetch(_buf, dim, _prefetch) => { 
 			match dim {
 				VarOrHole::Var(_) => false,
 				// Holes in prefetch should really be

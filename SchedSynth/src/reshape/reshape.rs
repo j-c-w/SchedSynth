@@ -5,7 +5,7 @@ use crate::ast::ast::AST;
 use crate::ast::ast::ASTUtils;
 use crate::ast::ast::NumberOrHole;
 use crate::ast::ast::VarOrHole;
-use crate::ast::ast::HoleOption;
+use crate::ast::ast::HoleOptionTrait;
 
 use crate::options::options::Options;
 use std::collections::HashMap;
@@ -188,9 +188,9 @@ fn apply_reshape(ast: &AST, reshape: &Reshape) -> (AST, bool) {
             // recurve through the ast and see if we can find somehwere
             // to apply the reshape.
             match ast {
-                AST::Produce(func, ast) => {
+                AST::Produce(func, ast, props) => {
                     let (new_ast, applied) = apply_reshape(&*ast, reshape);
-                    (AST::Produce(func.clone(), Box::new(new_ast)), applied)
+                    (AST::Produce(func.clone(), Box::new(new_ast), props.clone()), applied)
                 }
                 AST::Consume(func) => {
                     (AST::Consume(func.clone()), false)
@@ -278,7 +278,7 @@ fn enforce_nested(opts: &Options, ast: &AST, outer: Var, inner: Var, func_lookup
         println!("Enforcing nesting {} > {} on ast {}", outer, inner, ast);
     };
     let res = match ast {
-        AST::Produce(_func, subast) => {
+        AST::Produce(_func, subast, _props) => {
             enforce_nested(opts, &*subast, outer, inner, func_lookup, found_outer, found_inner)
         },
         AST::Consume(_func) => {

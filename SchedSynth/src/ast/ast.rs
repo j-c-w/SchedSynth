@@ -72,7 +72,7 @@ impl PartialEq for BufOrHole {
 
 #[derive(Clone)]
 pub enum AST {
-    Produce(Func, Box<AST>),
+    Produce(Func, Box<AST>, Vec<FuncProperty>),
     Consume(Func),
     For(VarOrHole, Box<AST>, ForRange, Vec<Property>),
     Assign(Func),
@@ -90,6 +90,12 @@ pub enum Property {
     Fuse(VarOrHole)
 }
 
+#[derive(Clone,PartialEq)]
+pub enum FuncProperty {
+    StoreOrder(Vec<VarOrHole>),
+    Memoize()
+}
+
 pub trait ASTUtils {
     fn is_loop_type(&self) -> bool;
     fn is_main_nest(&self) -> bool; // We use this concept of main nest to distinguish between the loops and properties.
@@ -104,16 +110,24 @@ pub trait ASTUtils {
     fn get_number_of_fixed_holes(&self) -> i32; // get the number of holes between here and the next non-hole.  Only count fixed holes :)
 }
 
-pub trait HoleOption<T> {
+pub trait HoleOptionTrait<T> {
     fn get(&self) -> Option<T>;
     fn is_hole(&self) -> bool;
+    fn unwrap(&self) -> &T;
 }
 
-impl HoleOption<Var> for VarOrHole {
+impl HoleOptionTrait<Var> for VarOrHole {
     fn get(&self) -> Option<Var> {
         match self {
             VarOrHole::Var(v) => Some(v.clone()),
             VarOrHole::Hole() => None
+        }
+    }
+
+    fn unwrap(&self) -> &Var {
+        match self {
+            VarOrHole::Var(v) => v,
+            VarOrHole::Hole() => panic!("Unexpected hole!"),
         }
     }
 
@@ -152,12 +166,12 @@ impl std::fmt::Display for Buf {
 impl ASTUtils for AST {
     fn size(&self) -> i32 {
         match self {
-            AST::Produce(func, ast) => 1 + ast.size(),
-            AST::Consume(func) => 1,
-            AST::For(var, ast, for_range, properties) => 1 + ast.size() + properties.len() as i32,
-            AST::Assign(func) => 1,
-            AST::StoreAt(func) => 1,
-            AST::Prefetch(buf, index, stride) => 1,
+            AST::Produce(_func, ast, _props) => 1 + ast.size(),
+            AST::Consume(_func) => 1,
+            AST::For(_var, ast, _for_range, properties) => 1 + ast.size() + properties.len() as i32,
+            AST::Assign(_func) => 1,
+            AST::StoreAt(_func) => 1,
+            AST::Prefetch(_buf, _index, _stride) => 1,
             AST::StructuralHole(ast) => 1 + ast.size(),
             AST::Sequence(asts) => asts.iter().map(|ast| ast.size()).sum()
         }
@@ -165,7 +179,7 @@ impl ASTUtils for AST {
 
     fn is_func(&self) -> bool {
         match self {
-            AST::Produce(_, _) => true,
+            AST::Produce(_, _, _) => true,
             _ => false
         }
     }
@@ -196,11 +210,11 @@ impl ASTUtils for AST {
             AST::Sequence(asts) => asts.iter().map(|ast| ast.get_number_of_fixed_holes()).sum(),
             AST::For(v, subast, _, _) => {
                 match v {
-                    VarOrHole::Var(var) => 0,
+                    VarOrHole::Var(_var) => 0,
                     VarOrHole::Hole() => 1 + subast.get_number_of_fixed_holes()
                 }
             },
-            AST::Produce(_func, ast) => ast.get_number_of_fixed_holes(),
+            AST::Produce(_func, ast, _prop) => ast.get_number_of_fixed_holes(),
             AST::Consume(_func) => 0,
             AST::Assign(_func) => 0,
             AST::StoreAt(_func) => 0,
@@ -215,7 +229,7 @@ impl ASTUtils for AST {
 
     fn get_next_main_var(&self) -> Option<Var> {
         match self {
-            AST::Produce(_, subast) => subast.get_next_main_var(),
+            AST::Produce(_, subast, _props) => subast.get_next_main_var(),
             AST::Consume(_) => None,
             AST::For(v, subast, _, _) =>
                 match v {
@@ -252,7 +266,7 @@ impl ASTUtils for AST {
 
     fn get_substruct(&self) -> Option<AST> {
         match self {
-            AST::Produce(_, ast) => Some(*ast.clone()),
+            AST::Produce(_, ast, _props) => Some(*ast.clone()),
             AST::Consume(_) => None,
             AST::For(_, ast, _, _) => Some(*ast.clone()),
             AST::StructuralHole(ast) => Some(*ast.clone()),
@@ -284,7 +298,7 @@ impl ASTUtils for AST {
     // /or/ if there are any variable holes
     fn has_structural_holes(&self) -> bool {
         match self {
-            AST::Produce(_f, subast) => subast.has_structural_holes(),
+            AST::Produce(_f, subast, _props) => subast.has_structural_holes(),
             AST::Consume(_f) => false,
             AST::For(v, subast, _r, _p) => v.is_hole() || subast.has_structural_holes(),
             AST::Assign(_f) => false,
@@ -322,7 +336,7 @@ pub fn get_store_at(opts: &Options, ast: &AST) -> Vec<(Func, Func, Var)> {
 
 pub fn get_store_at_internal(opts: &Options, parent_variable: &Option<&Var>, ast: &AST) -> Vec<(Func, Var)> {
     match ast {
-        AST::Produce(_func, ast) => {
+        AST::Produce(_func, ast, _props) => {
             get_store_at_internal(opts, parent_variable, ast)
         },
         AST::Consume(_func) => {
@@ -406,7 +420,7 @@ pub fn get_compute_at(opts: &Options, ast: &AST) -> Vec<(Func, Option<Func>, Opt
 fn get_compute_at_internal(opts: &Options, ast: &AST, producer: &Option<Func>, last_variable:
     &Option<Var>) -> Vec<(Func, Option<Func>, Option<Var>)> {
         match ast {
-            AST::Produce(var, ast) => {
+            AST::Produce(var, ast, _props) => {
                 let inner_producer = Some(var.clone());
                 get_compute_at_internal(opts, ast, &inner_producer, last_variable)
             },
@@ -516,7 +530,7 @@ fn get_loops_with_property(_opts: &Options, ast: &AST, current_producer: &Option
     // that contains it, and the variable that is vectorized.
     // when you hit a new produce, reset the producer we are tracking
     match ast {
-        AST::Produce(var, ast) => {
+        AST::Produce(var, ast, _props) => {
             let producer = Some(var.clone());
             get_loops_with_property(_opts, ast, &producer, properties)
         },
@@ -613,7 +627,7 @@ fn fuzzy_property_match(properties: &Vec<Property>, to_match: &Property) -> Vec<
 // child, panic --- shouldn't happen?
 fn remove_subfuncs(ast: &AST) -> AST {
     match ast {
-        AST::Produce(_func, _ast) => {
+        AST::Produce(_func, _ast, _props) => {
             panic!("Can't remove a non-sequence func");
         },
         AST::Consume(func) => {
@@ -646,12 +660,12 @@ fn remove_subfuncs(ast: &AST) -> AST {
     }
 }
 
-pub fn split_ast_into_funcs(ast: &AST) -> HashMap<Func, AST> {
+pub fn split_ast_into_funcs(ast: &AST) -> HashMap<Func, (AST, Vec<FuncProperty>)> {
     // split ast into the different funcs within (produce).
     let mut funcs = HashMap::new();
     match ast {
-        AST::Produce(func, ast) => {
-            funcs.insert(func.clone(), remove_subfuncs(ast));
+        AST::Produce(func, ast, props) => {
+            funcs.insert(func.clone(), (remove_subfuncs(ast), props.clone()));
             funcs.extend(split_ast_into_funcs(&ast));
             funcs
         },
@@ -678,7 +692,7 @@ pub fn split_ast_into_funcs(ast: &AST) -> HashMap<Func, AST> {
 
 pub fn get_all_funcnames(ast: &AST) -> Vec<Func> {
     match ast {
-        AST::Produce(func, ast) => {
+        AST::Produce(func, ast, _props) => {
             let mut res = get_all_funcnames(ast);
             res.push(func.clone());
             res
@@ -713,7 +727,7 @@ pub fn get_all_funcnames(ast: &AST) -> Vec<Func> {
 
 pub fn get_prefetches(opts: &Options, ast: &AST) -> Vec<(Buf, VarOrHole, NumberOrHole)> {
     match ast {
-        AST::Produce(_func, ast) => {
+        AST::Produce(_func, ast, _props) => {
             get_prefetches(opts, ast)
         },
         AST::Consume(_func) => {
@@ -760,7 +774,7 @@ pub fn get_prefetches(opts: &Options, ast: &AST) -> Vec<(Buf, VarOrHole, NumberO
 // <i, j, h> will return f
 // but <i, h> will fail (not covering for any variable)
 // and <b, e, h, i, j> will return a
-pub fn get_source_variable(opts: &Options, reshapes: &Vec<Reshape>, vars: Vec<Var>) -> Var {
+pub fn get_source_variable(_opts: &Options, reshapes: &Vec<Reshape>, vars: Vec<Var>) -> Var {
     // The algorithm here is to have a working set,
     // and to apply all the split/fuse rules
     // backwards.  After we get to a single variable,

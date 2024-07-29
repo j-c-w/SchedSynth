@@ -57,12 +57,13 @@ impl TargetLower for ExoProgram {
     fn to_reorder(&mut self, _commands: Vec<(Func, Var, Var)>) { }
     fn to_reshape(&mut self, _commands: &Vec<Reshape>) { }
     fn to_prefetch(&mut self, _commands: Vec<(Buf, VarOrHole, NumberOrHole)>) { }
+    fn to_func_property(&mut self, _commands: Vec<(Func, FuncProperty)>) { }
 }
 
 impl TargetHoles for ExoProgram {
     fn get_holes(&self) -> Vec<Box<dyn Hole>> { vec![] }
     fn can_resolve_holes(&self, _opts: &Options) -> bool { true }
-    fn fill_holes(&mut self, map: &HoleBindingMap) { }
+    fn fill_holes(&mut self, _map: &HoleBindingMap) { }
 }
 
 impl ToString for ExoProgram {

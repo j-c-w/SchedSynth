@@ -12,7 +12,7 @@ use crate::ast::ast::Func;
 use crate::ast::ast::Var;
 use crate::ast::convert::variable_to_var;
 use crate::ast::ast::AST;
-use crate::ast::ast::HoleOption;
+use crate::ast::ast::HoleOptionTrait;
 use crate::sketch_parse::parser::ASTNumberOrHole;
 use crate::shared::range_set::AnyIntegerSet;
 use crate::shared::range_set::set_from_name;
@@ -31,9 +31,9 @@ pub enum SplitsAST {
 fn splits_ast_to_reshape(ast: SplitsAST, func_lookup: &mut HashMap<Var, Func>) -> Reshape {
     match ast {
         SplitsAST::Split(var, (var1, var2), dim) => {
-            let new_var = variable_to_var(var).get().unwrap(); // not allowed to ahve holes in reshape variables
-            let new_var1 = variable_to_var(var1).get().unwrap();
-            let new_var2 = variable_to_var(var2).get().unwrap();
+            let new_var = variable_to_var(&var).get().unwrap(); // not allowed to ahve holes in reshape variables
+            let new_var1 = variable_to_var(&var1).get().unwrap();
+            let new_var2 = variable_to_var(&var2).get().unwrap();
             let new_func = func_lookup.get(&new_var).unwrap().clone();
 
             let new_dim = hole_from_ast_hole(dim);
@@ -46,9 +46,9 @@ fn splits_ast_to_reshape(ast: SplitsAST, func_lookup: &mut HashMap<Var, Func>) -
         },
         SplitsAST::Fuse((var1, var2), var) => {
             // note vars are in a different order from above.
-            let new_var1 = variable_to_var(var1).get().unwrap();
-            let new_var2 = variable_to_var(var2).get().unwrap();
-            let new_var = variable_to_var(var).get().unwrap();
+            let new_var1 = variable_to_var(&var1).get().unwrap();
+            let new_var2 = variable_to_var(&var2).get().unwrap();
+            let new_var = variable_to_var(&var).get().unwrap();
             let new_func = func_lookup.get(&new_var1).unwrap().clone();
             
             // keep the func_lookup table updated.
@@ -77,11 +77,11 @@ impl ToString for SplitsAST
     }
 }
 
-fn process_factor(opts: &Options, rule: Pair<Rule>) -> ASTNumberOrHole {
+fn process_factor(_opts: &Options, rule: Pair<Rule>) -> ASTNumberOrHole {
     match rule.as_rule() {
         Rule::factor_or_hole => {
             // convert rule string into i32
-			let mut inner = rule.clone().into_inner();
+			let _inner = rule.clone().into_inner();
             let factor_str = rule.as_span().as_str();
 			if !factor_str.starts_with("<") {
 				if factor_str == "??" {

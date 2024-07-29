@@ -141,7 +141,7 @@ if __name__ == '__main__':
     let mut new_runnable = File::create(&new_runnable_name).unwrap();
     let mut orig_runnable = match File::open(&opts.halide_program) {
         Ok(f) => f,
-        Err(e) => panic!("Make sure that a halide template is in {} (or set with --halide-program", opts.halide_program),
+        Err(_e) => panic!("Make sure that a halide template is in {} (or set with --halide-program", opts.halide_program),
     };
 
     // Replace the SCHED_CONTENT -- if 
