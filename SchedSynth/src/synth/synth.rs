@@ -27,6 +27,7 @@ fn synthesize_candidates(opts: &Options, backend_type: Backend, source: &AST, ta
     backend.to_parallel(crate::ast::ast::get_parallel(opts, &filled_target));
     backend.to_unroll(crate::ast::ast::get_unroll(opts, &filled_target));
     backend.to_prefetch(crate::ast::ast::get_prefetches(opts, &filled_target));
+    backend.to_func_property(crate::ast::ast::get_func_properties(opts, &filled_target));
 
     let candidates =  vec![
         backend

@@ -758,6 +758,42 @@ pub fn get_prefetches(opts: &Options, ast: &AST) -> Vec<(Buf, VarOrHole, NumberO
     }
 }
 
+pub fn get_func_properties(opts: &Options, ast: &AST) -> Vec<(Func, FuncProperty)> {
+    match ast {
+        AST::Produce(func, ast, props) => {
+            let mut sub_properties = get_func_properties(opts, ast);
+            let named_props: Vec<(Func, FuncProperty)> = props.iter().map(|p| (func.clone(), p.clone())).collect();
+            sub_properties.extend(named_props);
+            sub_properties
+        },
+        AST::Consume(_func) => {
+            vec![]
+        },
+        AST::For(_var, ast, _range, _props) => {
+            get_func_properties(opts, ast)
+        },
+        AST::Assign(_func) => {
+            vec![]
+        },
+        AST::StoreAt(_func) => {
+            vec![]
+        },
+        AST::Prefetch(func, var, stride) => {
+            vec![]
+        },
+        AST::StructuralHole(ast) => {
+            get_func_properties(opts, ast)
+        },
+        AST::Sequence(asts) => {
+            let mut res = vec![];
+            for ast in asts {
+                res.append(&mut get_func_properties(opts, ast));
+            }
+            res
+        }
+    }
+}
+
 // Given a set of variables that were derived from
 // a single variable, return that variable.
 // These secondary variables can be the results

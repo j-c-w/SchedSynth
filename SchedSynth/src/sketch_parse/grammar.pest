@@ -12,7 +12,7 @@ fuse = { whitespace_plus ~ "(" ~ whitespace_star ~ "fuse" ~ whitespace_plus ~ id
 ident = { (alpha | digit) + }
 ident_or_hole = { ident | "??" }
 ident_list = { ident | ident ~ whitespace_star ~ "," ~ whitespace_star ~ ident_list }
-ident_list_spaces = { ident | ident ~ whitespace_plus ~ ident_list_spaces }
+ident_list_spaces = { ident ~ whitespace_plus ~ ident_list_spaces | ident}
 newline = { whitespace* ~ "\n"}
 
 indent = { "  " }
