@@ -436,15 +436,19 @@ fn process(opts: &Options, nesting_depth: i32, sequence: Pair<Rule>) -> SketchAS
                 println!("Got a sequence");
             }
             let mut inner = sequence.into_inner();
+            if inner.len() == 1 {
+                // empty line
+                SketchAST::Sequence(nesting_depth, vec![])
+            } else {
+                assert!(inner.len() == 2);
 
-            assert!(inner.len() == 2);
+                let nesting = inner.next().unwrap();
+                let new_nesting_depth: i32 = nesting.into_inner().len() as i32; // Get the depth of the nest
 
-            let nesting = inner.next().unwrap();
-            let new_nesting_depth: i32 = nesting.into_inner().len() as i32; // Get the depth of the nest
-
-            // nesting despth is explitict from the indentation.
-            let stmt = process(opts, new_nesting_depth, inner.next().unwrap());
-            stmt
+                // nesting despth is explitict from the indentation.
+                let stmt = process(opts, new_nesting_depth, inner.next().unwrap());
+                stmt
+            }
         },
         Rule::produce => {
             if opts.debug_parser {

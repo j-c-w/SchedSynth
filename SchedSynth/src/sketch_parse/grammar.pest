@@ -24,7 +24,7 @@ optional_stride = { (whitespace_plus ~ stride)? }
 optional_fuse = { (fuse)? }
 
 produce = { "def" ~ whitespace_plus ~ ident_or_hole ~ colon }
-consume = { "compute" ~ whitespace_plus ~ ident_or_hole}
+consume = { "compute" ~ whitespace_plus ~ ident_or_hole }
 pfor = {"for" ~ whitespace_plus ~ ident_or_hole ~ optional_range ~ optional_fuse ~ colon }
 vectorize = { "vectorized" ~ whitespace_plus ~ ident_or_hole ~ optional_range ~ optional_fuse ~ colon }
 parallel = { "parallel" ~ whitespace_plus ~ ident_or_hole ~ optional_range ~ optional_fuse ~ colon }
@@ -34,7 +34,7 @@ unroll = { "unrolled" ~ whitespace_plus ~ ident_or_hole ~ optional_range ~ white
 prefetch = { "prefetch" ~ whitespace_plus ~ ident ~ whitespace_plus ~ "at" ~ whitespace_plus ~ ident_or_hole ~ optional_stride }
 structure_hole = { "??" ~ whitespace_star ~ colon }
 ordering = { "storage order" ~ whitespace_plus ~ ident_list_spaces }
-memoize = { "memoize" ~ whitespace_plus ~ ident_list_spaces }
+memoize = { "memoize" }
 
 whitespace = { " " | "\t" }
 whitespace_plus = { whitespace+ }
@@ -47,7 +47,8 @@ sequence_list = {
   | sequence ~ whitespace_or_newlines ~ EOI
 }
 sequence =
-  { indent_nest ~ produce
+  { 
+  indent_nest ~ produce
   | indent_nest ~ structure_hole
   | indent_nest ~ consume
   | indent_nest ~ pfor
@@ -58,4 +59,5 @@ sequence =
   | indent_nest ~ vectorize
   | indent_nest ~ unroll
   | indent_nest ~ prefetch
-  | indent_nest ~ parallel }
+  | indent_nest ~ parallel 
+  | indent_nest }
