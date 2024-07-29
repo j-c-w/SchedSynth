@@ -1,40 +1,40 @@
-produce input_im_global_wrapper:
+def input_im_global_wrapper:
   ??
-    unrolled input._0:
+    unrolled i._0:
       compute
-produce filter_im_global_wrapper:
-  unrolled _3:
+def filter_im_global_wrapper:
+  unrolled f_3:
     ??:
-      unrolled filter._0._0:
-        vectorized filter._0.v22 in [0, 15]:
+      unrolled f_0.1:
+        vectorized f_0.2 in [0, 15]:
           compute
-produce conv:
+def conv:
   for n_conv:
     unrolled y_conv:
       unrolled x_conv:
-        unrolled c_conv.c_conv:
-          vectorized c_conv.v11 in [0, 15]:
-            conv(...) = ...
-produce conv.update():
+        unrolled c_conv.1:
+          vectorized c_conv.2 in [0, 15]:
+            compute
+def conv.update():
   for n_conv_up:
     for r13_1 in [0, 2]:
       for r13_2 in [0, 2]:
-        for r13.r13.2 in [0, 63]:
-          consume filter_im_global_wrapper:
-            unrolled r13.r247 in [0, 1]:
-              unrolled y_conv_up:
-                unrolled x_conv_up:
-                  consume input_im_global_wrapper:
-                    unrolled c_conv_up.c_conv_up:
-                      vectorized c_conv_up.v15 in [0, 15]:
+        for r13_3.2 in [0, 63]:
+          compute filter_im_global_wrapper
+          unrolled r13_3.1 in [0, 1]:
+            unrolled y_conv_up:
+              unrolled x_conv_up:
+                consume input_im_global_wrapper:
+                  unrolled c_conv_up.1:
+                    vectorized c_conv_up.2 in [0, 15]:
                         compute
 produce relu:
-  parallel c_relu.v3 in [0, 1]:
+  parallel c_relu.1 in [0, 1]:
     parallel n_relu in [0, 4]:
       parallel y_relu in [0, 79]:
-        for x_relu.v5 in [0, 19]:
-          consume conv:
-            unrolled x_relu.v6 in [0, 4]:
-              unrolled c_relu.v4.v4 in [0, 3]:
-                vectorized c_relu.v4.v10 in [0, 15]:
-                  compute
+        for x_relu.1 in [0, 19]:
+          compute conv
+          unrolled x_relu.2 in [0, 4]:
+            unrolled c_relu.2.1 in [0, 3]:
+              vectorized c_relu.2.1 in [0, 15]:
+                compute
