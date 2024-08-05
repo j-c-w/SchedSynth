@@ -1,9 +1,11 @@
 def daubechies_x:
-  unroll x, 2:
-    for y:
+  storage order dy dx
+  unrolled dx 2:
+    for dy:
       compute
 
 def haar_x:
-  unroll x, 2:
-    for y:
+  memoize
+  unrolled hx 2:
+    for hy:
       compute

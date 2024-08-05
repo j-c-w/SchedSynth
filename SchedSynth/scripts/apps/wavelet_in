@@ -1,9 +1,8 @@
 def daubechies_x:
-  for x:
-    for y:
+  for dx:
+    for dy:
       compute
-
 def haar_x:
-  for x:
-    for y:
+  for hx:
+    for hy:
       compute
